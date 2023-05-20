@@ -1,5 +1,9 @@
 # Changelog
 
+### v0.7
+
+- Created [launcher.js](./js/launcher.js) and [the bookmarklet page](https://r8btx.github.io/Server-Clock-Bookmarklet/page) to simplify the setup process.
+
 ### v0.6
 
 - Now uses [Performance.now()](https://developer.mozilla.org/en-US/docs/Web/API/Performance/now) to avoid local clock issues
