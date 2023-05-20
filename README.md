@@ -8,20 +8,22 @@ It is a reimplementation of [the previous project](https://github.com/r8btx/Serv
 While **Server Clock** aims to be accurate, no warranty is given. Use at your own risk!  
 This document is revised using ChatGPT.
 
+## Quick Set Up
+
+- Open the [Server Clock bookmarklet page](https://r8btx.github.io/Server-Clock-Bookmarklet/page) and drag the "Server Clock" link to your bookmark bar.
+
+If you wish to create the bookmarklet from the source, you can do so with [this tool](https://chriszarate.github.io/bookmarkleter/).
+
 ## How to Use
 
-1. Open the following link: [serverclock.txt](https://raw.githubusercontent.com/r8btx/Server-Clock-Bookmarklet/master/bookmarklet/serverclock.txt)
-2. Select all (Click the page and `Ctrl + A` or `Command + A`).
-3. Drag the selected text to your bookmark bar. This creates the bookmarklet.
-4. Rename the bookmarklet to `Server Clock`.
-5. Navigate to your target webpage. Example: [time.is](https://time.is)
-6. Once the webpage is loaded, click `Server Clock` bookmarklet on your bookmark bar.
-7. A small box will appear on your webpage. After the synchronization process, the web server's time will be displayed.
+1. Navigate to your target webpage. Example: [time.is](https://time.is)
+2. Once the webpage is loaded, click `Server Clock` bookmarklet on your bookmark bar.
+3. A small box will appear on your webpage. After the synchronization process, the web server's time will be displayed.
 
 Tip 1: You can right-click on the box to use additional features.  
 Tip 2: You can drag the box around for a better view.  
 Tip 3: You can open the browser console (accessed via `F12` key) to see logs.  
-Tip 4: The clock is most accurate when the page is freshly loaded and the sample size is big.
+Tip 4: The clock is most accurate when the page is freshly loaded.
 
 ## Screenshots
 
