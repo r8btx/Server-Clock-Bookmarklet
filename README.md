@@ -8,11 +8,11 @@ It is a reimplementation of [the previous project](https://github.com/r8btx/Serv
 While **Server Clock** aims to be accurate, no warranty is given. Use at your own risk!  
 This document is revised using ChatGPT.
 
-## Quick Set Up
+## Quick Setup
 
 - Open the [Server Clock bookmarklet page](https://r8btx.github.io/Server-Clock-Bookmarklet/page) and drag the "Server Clock" link to your bookmark bar.
 
-If you wish to create the bookmarklet from the source, you can do so with [this tool](https://chriszarate.github.io/bookmarkleter/).
+If you wish to generate the bookmarklet directly from the source, you can do so using [this tool](https://chriszarate.github.io/bookmarkleter/).
 
 ## How to Use
 
