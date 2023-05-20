@@ -71,6 +71,7 @@ To handle outliers, the estimation pooling process only considers estimations wi
 1. Utilize a persistent connection to eliminate the overhead of establishing new connections for each request.
 2. Prevent the serving of cached content to ensure up-to-date values for the date attribute.
 3. Update the resulting clock at the start of each second to accurately synchronize the displayed clock to the estimated server time.
+4. Determine if the collected sample size is sufficient to accurately estimate server time.
 
 ## Resources and References
 
@@ -79,4 +80,4 @@ To handle outliers, the estimation pooling process only considers estimations wi
 - [A Question of Timing](https://blog.cloudflare.com/a-question-of-timing/) - PerformanceObserver Timings Visual
 - [Hypertext Transfer Protocol (HTTP/1.1): Semantics and Content](https://httpwg.org/specs/rfc7231.html#header.date) - `date` header in HTTP response
 - [Time.is : exact time for any time zone](https://time.is/) - Tested against this web server
-- [Time API | Time Zone API](https://www.timeapi.io/) - Tested against this web server. Use [test_accuracy.js](./js/test_accuracy.js) for future testings.
+- [Time API: Time Zone API](https://www.timeapi.io/) - Tested against this web server. Use [test_accuracy.js](./js/test_accuracy.js) for future testings.
