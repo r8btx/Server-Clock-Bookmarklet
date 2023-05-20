@@ -32,6 +32,10 @@
     }),
   });
 
+  function getTime() {
+    return performance.timeOrigin + performance.now();
+  }
+
   // Determine if the collected sample size is sufficient to accurately estimate the server clock
   function isSampleSufficient() {
     if (repeat < min_repeat) {
@@ -134,8 +138,8 @@
         // Calculate client/server time difference based on HTTP `date` header
         // Accomodate estimated elapsed time (time taken before server recorded `date`)
         // Accomodate estimated elapsed time for the json response (time passed since the response was made)
-        const adj = servertime - (clienttime.getTime() + elapsed);
-        const est = new Date().getTime() + adj;
+        const adj = servertime - (clienttime + elapsed);
+        const est = getTime() + adj;
         const est_json = servertime_json + elapsed_json;
         adjustments.push([adj, est - est_json]); // push difference also
         console.log('Collected an adjustment');
@@ -156,7 +160,7 @@
     observer.observe({ type: 'resource' });
 
     // Define client time. Will be used to calculate time difference.
-    let clienttime = new Date();
+    let clienttime = getTime();
 
     // Make a HTTP request
     fetch(request)

@@ -1,5 +1,9 @@
 # Changelog
 
+### v0.6
+
+- Now uses [Performance.now()](https://developer.mozilla.org/en-US/docs/Web/API/Performance/now) to avoid local clock issues
+
 ### v0.5
 
 - Added automatic sampling size calculation
