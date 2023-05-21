@@ -37,7 +37,7 @@
 
   // Try to target end points (least & max truncation)
   function getDelay(elapsed, repeated) {
-    if (!best_at_hand) return 125;
+    if (!best_at_hand) return 250;
     let delay = 0;
     let upper = 0;
     while (delay <= 0) {
@@ -203,5 +203,6 @@
   }
 
   // Start
+  console.log('Server Clock started.');
   run();
 })();
