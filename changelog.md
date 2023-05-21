@@ -1,5 +1,10 @@
 # Changelog
 
+### v0.8
+
+- Combined 'Add 5 more samples' and 'Empty collected samples' into 'Rerun' in UI
+- Attempt to increase the estimation accuracy with less number of requests.
+
 ### v0.7
 
 - Created [launcher.js](./js/launcher.js) and [the bookmarklet page](https://r8btx.github.io/Server-Clock-Bookmarklet/page) to simplify the setup process.

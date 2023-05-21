@@ -7,14 +7,13 @@
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   let adjustment;
   let adjustments = []; // A pool of clock adjustments (client/server time difference)
-  let repeat = 0;
-  let min_repeat = 5;
-  let max_repeat = 25;
-  let timespacing = 250; // In msec. Used for estimating time more granularly than a second.
-  let timeout;
+  let best_at_hand;
+  let repeated = 0;
+  const min_repeat = 5;
+  const max_repeat = 25;
   const timeout_time = 5000; // In msec. Will retry request after this time
-  const tolerance_err = 150;
-  const tolerance_outlier = 250;
+  const tolerance_err = 125;
+  const tolerance_outlier = 200;
 
   // Request https://www.timeapi.io/
   const url = 'https://www.timeapi.io/api/Time/current/zone?timeZone='.concat(timezone);
@@ -36,12 +35,25 @@
     return performance.timeOrigin + performance.now();
   }
 
+  // Try to target end points (least & max truncation)
+  function getDelay(elapsed, repeated) {
+    if (!best_at_hand) return 125;
+    let delay = 0;
+    let upper = 0;
+    while (delay <= 0) {
+      upper += 1000;
+      delay = upper - elapsed - ((getTime() + best_at_hand) % 1000) - (repeated % 2) * 100;
+    }
+    return delay;
+  }
+
   // Determine if the collected sample size is sufficient to accurately estimate the server clock
   function isSampleSufficient() {
-    if (repeat < min_repeat) {
+    if (repeated < min_repeat) {
       return false;
     }
-    if (repeat >= max_repeat) {
+    if (repeated >= max_repeat) {
+      console.log('Maximum repeat reached.');
       return true;
     }
     let min = Infinity;
@@ -65,6 +77,9 @@
         max2 = adjustments[i][0];
       }
     }
+
+    // Current best guess of the time difference
+    best_at_hand = max;
 
     // Return whether the maximum value and the minimum value is around 1 sec (max truncation difference)
     return 1000 - tolerance_err <= max - min && min2 - min < tolerance_outlier && max - max2 < tolerance_outlier;
@@ -119,6 +134,7 @@
     let servertime_json;
     let elapsed = 0;
     let elapsed_json;
+    let timeout;
 
     // Create a PerformanceObserver
     const observer = new PerformanceObserver((list) => {
@@ -143,12 +159,12 @@
         const est_json = servertime_json + elapsed_json;
         adjustments.push([adj, est - est_json]); // push difference also
         console.log('Collected an adjustment');
-        repeat++;
+        repeated++;
 
         // Repeat the process using recursive function
         // When done, decide which adjustment to use
         if (!isSampleSufficient()) {
-          setTimeout(run, timespacing + Math.random() * 500);
+          setTimeout(run, getDelay(elapsed, repeated));
         } else {
           chooseAdjustment();
         }
