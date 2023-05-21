@@ -72,6 +72,7 @@ To handle outliers, the estimation pooling process only considers estimations wi
 2. Prevent the serving of cached content to ensure up-to-date values for the date attribute.
 3. Update the resulting clock at the start of each second to accurately synchronize the displayed clock to the estimated server time.
 4. Determine if the collected sample size is sufficient to accurately estimate server time.
+5. And others.
 
 ## Resources and References
 
