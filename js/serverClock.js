@@ -5,8 +5,9 @@
   let adjustments = []; // A pool of clock adjustments (client/server time difference)
   let best_at_hand;
   let repeated = 0;
+  let stop = false;
   const min_repeat = 5;
-  const max_repeat = 25;
+  const max_repeat = 6;
   const timeout_time = 5000; // In msec. Will retry request after this time
   const tolerance_err = 125;
   const tolerance_outlier = 200;
@@ -254,9 +255,14 @@
       {
         label: 'Exit',
         action: () => {
-          clearTimeout(clock);
+          console.log(document.currentScript);
+          stop = true;
           document.body.removeChild(clockElement);
-          console.log('UI removed.');
+          document.head.removeChild(styleSheet);
+          if (document.currentScript) {
+            document.body.removeChild(document.currentScript);
+          }
+          console.log('Termination triggered.');
         },
       },
     ];
@@ -375,7 +381,7 @@
       // Update clock every beginning of a second
       clockTime = getTime() + adjustment;
       clockElement.textContent = formatTime();
-      clock = setTimeout(updateClock, 1000 - (clockTime % 1000));
+      clock = stop ? null : setTimeout(updateClock, 1000 - (clockTime % 1000));
     }
 
     function delayedRun() {
