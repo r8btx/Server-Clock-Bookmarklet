@@ -1,5 +1,9 @@
 # Changelog
 
+### v0.9
+
+- Clean up upon exit
+
 ### v0.8
 
 - Combined 'Add 5 more samples' and 'Empty collected samples' into 'Rerun' in UI
