@@ -49,7 +49,7 @@
       return false;
     }
     if (repeated >= max_repeat) {
-      console.log('Maximum repeat reached.');
+      console.log('Inaccuracy Warning: Maximum repeat reached.');
       return true;
     }
     let min = Infinity;
@@ -195,7 +195,8 @@
         position: fixed;
         top: 10px;
         left: 10px;
-        background-color: #f2f2f2;
+        color: #000;
+        background: #f2f2f2;
         border: 1px solid #ddd;
         border-radius: 6px;
         padding: 12px;
@@ -214,6 +215,7 @@
         display: flex;
         flex-direction: column;
         position: fixed;
+        color: #000;
         background: #fff;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         border-radius: 4px;
