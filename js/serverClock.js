@@ -7,7 +7,7 @@
   let repeated = 0;
   let stop = false;
   const min_repeat = 5;
-  const max_repeat = 6;
+  const max_repeat = 25;
   const timeout_time = 5000; // In msec. Will retry request after this time
   const tolerance_err = 125;
   const tolerance_outlier = 200;
