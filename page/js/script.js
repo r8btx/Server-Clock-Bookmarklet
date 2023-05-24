@@ -42,7 +42,7 @@ function init() {
   let d_options = document.getElementById('options');
   let d_bookmarklets = document.getElementById('bookmarklets');
   let d_notes = document.getElementById('notes');
-  const datasrc = location.href.replace(/page\/.*/, 'data.json');
+  const datasrc = location.href.replace(/page\/.*/, '/page/data.json');
   let groups = [];
   let index = 0;
 
