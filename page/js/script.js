@@ -3,14 +3,14 @@
 // ------------------------------*/
 
 // Option for UglifyJS
-let options = {
-  compress: {
-    expression: true,
-    keep_fargs: true,
-    keep_infinity: true,
-  },
-  wrap: false,
-};
+// let options = {
+//   compress: {
+//     expression: true,
+//     keep_fargs: true,
+//     keep_infinity: true,
+//   },
+//   wrap: false,
+// };
 
 // URI encode reserved characters
 function encodeReserved(str) {
@@ -20,17 +20,19 @@ function encodeReserved(str) {
 
 // Make JavaScript bookmarklet from a static source
 function makeBookmarklet(src) {
-  let sourceCode;
   let compressed;
   fetch(src)
     .then((response) => response.text())
-    .then((text) => {
-      sourceCode = text;
+    .then((sourceCode) => {
+      compressed = minify(sourceCode, options).code;
+      compressed = compressed.replace(/\n\s+/gm, ''); // temporary fix
+      bookmarklet = 'javascript:void function(){' + encodeReserved(compressed) + '}();';
+      return bookmarklet;
+    })
+    .catch((error) => {
+      console.error('Fetch Error:', error);
+      return '#';
     });
-  compressed = minify(sourceCode, options).code;
-  compressed = compressed.replace(/\n\s+/gm, ''); // temporary fix
-  bookmarklet = 'javascript:void function(){' + encodeReserved(compressed) + '}();';
-  return bookmarklet;
 }
 
 /* ------------------------------
@@ -39,11 +41,10 @@ function makeBookmarklet(src) {
 
 function init() {
   document.removeEventListener('DOMContentLoaded', init);
-  let options = [];
   let d_options = document.getElementById('options');
   let d_bookmarklets = document.getElementById('bookmarklets');
   let d_notes = document.getElementById('notes');
-  const datasrc = location.href.replace(/page\/.*/, '/page/data.json');
+  const datasrc = location.href.replace(/page\/.*/, 'page/data.json');
   let groups = [];
   let index = 0;
 
@@ -57,7 +58,6 @@ function init() {
           option.value = index;
           option.innerText = entry['name'];
           d_options.appendChild(option);
-          options.push(option);
           elms.push(option);
 
           let bookmarklet = document.createElement('a');
@@ -85,15 +85,24 @@ function init() {
           groups.push(elms);
           index++;
         });
+      })
+      .catch((error) => {
+        console.error('Fetch Error:', error);
       });
-    index--; // last index is notequal to length
   }
 
   function updateDropdown() {
-    options.forEach((elm) => {
-      elm.classList.add('hidden');
-    });
-    options[Math.max(0, d_options.value)].classList.remove('hidden');
+    for (let i = 0; i < groups.length; i++) {
+      if (Math.max(0, Math.max(0, d_options.value)) == i) {
+        for (let j = 1; j < groups[i].length; j++) {
+          groups[i][j].classList.remove('hidden');
+        }
+      } else {
+        for (let j = 1; j < groups[i].length; j++) {
+          groups[i][j].classList.add('hidden');
+        }
+      }
+    }
   }
 
   function removeDummy() {
