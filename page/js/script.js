@@ -93,7 +93,7 @@ function init() {
     options.forEach((elm) => {
       elm.classList.add('hidden');
     });
-    options[i].classList.remove('hidden');
+    options[this.target.value].classList.remove('hidden');
   }
 
   function removeDummy() {
