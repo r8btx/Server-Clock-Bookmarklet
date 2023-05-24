@@ -39,6 +39,7 @@ function makeBookmarklet(src) {
 
 function init() {
   document.removeEventListener('DOMContentLoaded', init);
+  let options = [];
   let d_options = document.getElementById('options');
   let d_bookmarklets = document.getElementById('bookmarklets');
   let d_notes = document.getElementById('notes');
@@ -56,6 +57,7 @@ function init() {
           option.value = index;
           option.innerText = entry['name'];
           d_options.appendChild(option);
+          options.push(option);
           elms.push(option);
 
           let bookmarklet = document.createElement('a');
@@ -88,12 +90,10 @@ function init() {
   }
 
   function updateDropdown() {
-    d_options.childNodes.forEach((elm) => {
+    options.forEach((elm) => {
       elm.classList.add('hidden');
     });
-    for (let i = 1; i < groups[this.target.value].length; i++) {
-      groups[index][i].classList.remove('hidden');
-    }
+    options[i].classList.remove('hidden');
   }
 
   function removeDummy() {
