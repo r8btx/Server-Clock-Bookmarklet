@@ -91,7 +91,7 @@ function init() {
     for (let i = 1; i < groups[index].length; i++) {
       groups[index][i].classList.add('hidden');
     }
-    index = d_options.value;
+    index = this.target.value;
     for (let i = 1; i < groups[index].length; i++) {
       groups[index][i].classList.remove('hidden');
     }
