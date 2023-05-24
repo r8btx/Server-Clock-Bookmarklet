@@ -39,10 +39,11 @@ function makeBookmarklet(src) {
 
 function init() {
   document.removeEventListener('DOMContentLoaded', init);
+  let options = [];
   let d_options = document.getElementById('options');
   let d_bookmarklets = document.getElementById('bookmarklets');
   let d_notes = document.getElementById('notes');
-  const datasrc = location.href.replace(/page\/.*/, 'data.json');
+  const datasrc = location.href.replace(/page\/.*/, '/page/data.json');
   let groups = [];
   let index = 0;
 
@@ -56,6 +57,7 @@ function init() {
           option.value = index;
           option.innerText = entry['name'];
           d_options.appendChild(option);
+          options.push(option);
           elms.push(option);
 
           let bookmarklet = document.createElement('a');
@@ -74,7 +76,7 @@ function init() {
             '</b><br/><br/>Version: ' +
             entry['version'] +
             '<br/>Size: <span id=s' +
-            index +
+            String(index) +
             '>0</span> characters';
           note.classList.add('note');
           note.classList.add('hidden');
@@ -88,13 +90,10 @@ function init() {
   }
 
   function updateDropdown() {
-    for (let i = 1; i < groups[index].length; i++) {
-      groups[index][i].classList.add('hidden');
-    }
-    index = d_options.value;
-    for (let i = 1; i < groups[index].length; i++) {
-      groups[index][i].classList.remove('hidden');
-    }
+    options.forEach((elm) => {
+      elm.classList.add('hidden');
+    });
+    options[i].classList.remove('hidden');
   }
 
   function removeDummy() {
