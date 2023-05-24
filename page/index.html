@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Server Clock Bookmarklet</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+
+  <body>
+    <div class="background">
+      <div class="wrapper">
+        <div class="section">
+          <h1 class="title">Server Clock Bookmarklet</h1>
+          <p>
+            Server Clock is designed to display the system clock of the target web server.<br />
+            Choose your option below and follow the instruction.
+          </p>
+          <select id="options">
+            <option class="dummy">Loading...</option>
+          </select>
+          <div id="bookmarklets">
+            <a class="dummy">Loading...</a>
+          </div>
+          <div id="notes">
+            <div class="note dummy">
+              Loading data from JSON file...<br />
+              <br />
+              Version: <span>0</span><br />
+              Size: <span>0</span> characters
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <a href="https://github.com/r8btx/Server-Clock-Bookmarklet">Visit project page</a>
+        </div>
+      </div>
+    </div>
+    <!-- UglifyJS is used to compress JavaScript
+         UglifyJS is released under the BSD license:
+         Copyright 2012-2019 (c) Mihai Bazon <mihai.bazon@gmail.com> -->
+    <script src="UglifyJS/lib/minify.js"></script>
+    <script src="UglifyJS/lib/utils.js"></script>
+    <script src="UglifyJS/lib/ast.js"></script>
+    <script src="UglifyJS/lib/parse.js"></script>
+    <script src="UglifyJS/lib/transform.js"></script>
+    <script src="UglifyJS/lib/scope.js"></script>
+    <script src="UglifyJS/lib/output.js"></script>
+    <script src="UglifyJS/lib/compress.js"></script>
+
+    <script src="./js/script.js"></script>
+  </body>
+</html>

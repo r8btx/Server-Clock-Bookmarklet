@@ -1,0 +1,18 @@
+{
+  "bookmarklets": [
+    {
+      "name": "Default (full version)",
+      "src": "https://r8btx.github.io/Server-Clock-Bookmarklet/js/serverClock.js",
+      "note": "A full, independent version of Server Clock. \nYou may have to visit this page and update your bookmarklet manually.",
+      "instruction": "Drag the above link to your browser bookmark bar.",
+      "version": "v0.9"
+    },
+    {
+      "name": "Launcher",
+      "src": "https://r8btx.github.io/Server-Clock-Bookmarklet/js/launcher.js",
+      "note": "A lightweight launcher that will always fetch and run the latest version of Server Clock. \nThe launcher may not work on webpages with strict content security policy.",
+      "instruction": "Drag the above link to your browser bookmark bar.",
+      "version": "v0.1"
+    }
+  ]
+}
