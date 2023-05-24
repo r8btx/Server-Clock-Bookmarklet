@@ -74,7 +74,7 @@ function init() {
             '</b><br/><br/>Version: ' +
             entry['version'] +
             '<br/>Size: <span id=s' +
-            index +
+            String(index) +
             '>0</span> characters';
           note.classList.add('note');
           note.classList.add('hidden');
@@ -88,11 +88,10 @@ function init() {
   }
 
   function updateDropdown() {
-    for (let i = 1; i < groups[index].length; i++) {
-      groups[index][i].classList.add('hidden');
-    }
-    index = this.target.value;
-    for (let i = 1; i < groups[index].length; i++) {
+    d_options.childNodes.forEach((elm) => {
+      elm.classList.add('hidden');
+    });
+    for (let i = 1; i < groups[this.target.value].length; i++) {
       groups[index][i].classList.remove('hidden');
     }
   }
