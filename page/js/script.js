@@ -3,34 +3,11 @@
 // ------------------------------*/
 
 // Option for UglifyJS
-let options = {
-  compress: {
-    expression: true,
-    keep_fargs: true,
-    keep_infinity: true,
-  },
-  wrap: false,
-};
 
 // URI encode reserved characters
 function encodeReserved(str) {
   const reserved = [' ', '%', '"', '<', '>', '#', '@', '\\&', '\\?'];
   return str.replace(new RegExp(reserved.join('|'), 'g'), encodeURIComponent);
-}
-
-// Make JavaScript bookmarklet from a static source
-function makeBookmarklet(src) {
-  let sourceCode;
-  let compressed;
-  fetch(src)
-    .then((response) => response.text())
-    .then((text) => {
-      sourceCode = text;
-    });
-  compressed = minify(sourceCode, options).code;
-  compressed = compressed.replace(/\n\s+/gm, ''); // temporary fix
-  bookmarklet = 'javascript:void function(){' + encodeReserved(compressed) + '}();';
-  return bookmarklet;
 }
 
 /* ------------------------------
@@ -42,12 +19,12 @@ function init() {
   let d_options = document.getElementById('options');
   let d_bookmarklets = document.getElementById('bookmarklets');
   let d_notes = document.getElementById('notes');
-  const datasrc = './data.json';
+  const datasrc = location.href.replace(/page\/.*/, 'page/data.json');
   let groups = [];
   let index = 0;
 
-  function loadData() {
-    fetch(datasrc)
+  async function loadData() {
+    return fetch(datasrc)
       .then((response) => response.json())
       .then((data) => {
         data['bookmarklets'].forEach((entry) => {
@@ -74,7 +51,7 @@ function init() {
             '</b><br/><br/>Version: ' +
             entry['version'] +
             '<br/>Size: <span id=s' +
-            index +
+            String(index) +
             '>0</span> characters';
           note.classList.add('note');
           note.classList.add('hidden');
@@ -83,17 +60,25 @@ function init() {
           groups.push(elms);
           index++;
         });
+        return true;
+      })
+      .catch((error) => {
+        console.error('Fetch Error:', error);
+        return false;
       });
-    index--; // last index is notequal to length
   }
 
   function updateDropdown() {
-    for (let i = 1; i < groups[index].length; i++) {
-      groups[index][i].classList.add('hidden');
-    }
-    index = d_options.value;
-    for (let i = 1; i < groups[index].length; i++) {
-      groups[index][i].classList.remove('hidden');
+    for (let i = 0; i < groups.length; i++) {
+      if (Math.max(0, d_options.value) == i) {
+        for (let j = 1; j < groups[i].length; j++) {
+          groups[i][j].classList.remove('hidden');
+        }
+      } else {
+        for (let j = 1; j < groups[i].length; j++) {
+          groups[i][j].classList.add('hidden');
+        }
+      }
     }
   }
 
@@ -103,25 +88,63 @@ function init() {
     }
   }
 
-  function attachBookmarklet() {
+  // Make JavaScript bookmarklet from a static source
+  function attachBookmarklet(src) {
     let bookmarklets = document.getElementsByClassName('bookmarklet');
+    let options = {
+      compress: {
+        expression: true,
+        keep_fargs: true,
+        keep_infinity: true,
+      },
+      wrap: false,
+    };
+
     for (let i = 0; i < bookmarklets.length; i++) {
       // Update href to bookmarklet
       const src = bookmarklets[i].href;
-      bookmarklets[i].href = makeBookmarklet(src);
-      bookmarklets[i].innerHTML = '<b>Server Clock</b>';
-      // Update size
-      const id = 's' + String(i);
-      document.getElementById(id).innerText = String(bookmarklets[i].href.length);
+      fetch(src)
+        .then((response) => response.text())
+        .then((sourceCode) => {
+          let result = minify(sourceCode, options);
+          if (result.error) {
+            throw result.error;
+          }
+          if (!result.code) {
+            throw 'UglyJS returned an empty string';
+          }
+          return result.code;
+        })
+        .then((compressed) => {
+          return compressed.replace(/\n\s+/gm, ''); // temporary fix
+        })
+        .then((compressed) => {
+          return encodeReserved(compressed);
+        })
+        .then((encoded) => {
+          // Finalize bookmarklet generation
+          let bookmarklet = 'javascript:void function(){' + encoded + '}();';
+          bookmarklets[i].href = bookmarklet;
+          bookmarklets[i].innerHTML = '<b>Server Clock</b>';
+
+          // Update size
+          const id = 's' + String(i);
+          document.getElementById(id).innerText = String(bookmarklets[i].href.length);
+        })
+        .catch((error) => {
+          console.error('Error:', error);
+          return '#';
+        });
     }
   }
 
   d_options.addEventListener('change', updateDropdown);
 
-  loadData();
-  removeDummy();
-  updateDropdown();
-  attachBookmarklet();
+  loadData().then(() => {
+    removeDummy();
+    updateDropdown();
+    attachBookmarklet();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);
