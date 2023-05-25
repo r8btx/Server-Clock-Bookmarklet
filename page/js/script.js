@@ -1,9 +1,3 @@
-/* ------------------------------
-// Bookmarklet Generation Section
-// ------------------------------*/
-
-// Option for UglifyJS
-
 // URI encode reserved characters
 function encodeReserved(str) {
   const reserved = [' ', '%', '"', '<', '>', '#', '@', '\\&', '\\?'];
@@ -89,8 +83,10 @@ function init() {
   }
 
   // Make JavaScript bookmarklet from a static source
-  function attachBookmarklet(src) {
+  function attachBookmarklet() {
     let bookmarklets = document.getElementsByClassName('bookmarklet');
+
+    // Option for UglifyJS
     let options = {
       compress: {
         expression: true,

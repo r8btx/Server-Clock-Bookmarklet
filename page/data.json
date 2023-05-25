@@ -13,6 +13,13 @@
       "note": "A lightweight launcher that will always fetch and run the latest version of Server Clock. \nThe launcher may not work on webpages with strict content security policy.",
       "instruction": "Drag the above link to your browser bookmark bar.",
       "version": "v0.1"
+    },
+    {
+      "name": "test_accuracy.js",
+      "src": "https://r8btx.github.io/Server-Clock-Bookmarklet/js/test_accuracy.js",
+      "note": "A console-only, test version of Server Clock.\n.",
+      "instruction": "Drag the above link to your browser bookmark bar.\nVisit <a href='https://www.timeapi.io/'>TimeAPI</a>",
+      "version": "v0.9"
     }
   ]
 }
