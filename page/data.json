@@ -17,8 +17,8 @@
     {
       "name": "test_accuracy.js",
       "src": "https://r8btx.github.io/Server-Clock-Bookmarklet/js/test_accuracy.js",
-      "note": "A console-only, test version of Server Clock.\n.",
-      "instruction": "Drag the above link to your browser bookmark bar.\nVisit <a href='https://www.timeapi.io/'>TimeAPI</a>",
+      "note": "A console-only, test version of Server Clock.",
+      "instruction": "Drag the above link to your browser bookmark bar.\nVisit www.timeapi.io for testing.",
       "version": "v0.9"
     }
   ]
