@@ -23,8 +23,8 @@ function init() {
   let groups = [];
   let index = 0;
 
-  function loadData() {
-    fetch(datasrc)
+  async function loadData() {
+    return fetch(datasrc)
       .then((response) => response.json())
       .then((data) => {
         data['bookmarklets'].forEach((entry) => {
@@ -60,9 +60,11 @@ function init() {
           groups.push(elms);
           index++;
         });
+        return true;
       })
       .catch((error) => {
         console.error('Fetch Error:', error);
+        return false;
       });
   }
 
@@ -138,10 +140,11 @@ function init() {
 
   d_options.addEventListener('change', updateDropdown);
 
-  loadData();
-  removeDummy();
-  updateDropdown();
-  attachBookmarklet();
+  loadData().then(() => {
+    removeDummy();
+    updateDropdown();
+    attachBookmarklet();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);
