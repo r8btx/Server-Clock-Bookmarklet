@@ -1,16 +1,17 @@
 # Server Clock Bookmarklet
 
-**Server Clock** is a JavaScript bookmarklet designed to display the system clock of the target web server.  
+**Server Clock** is a JavaScript bookmarklet that attempts to solve the problem of server/client clock differences. By displaying an accurately approximated server time, this tool allows its users to know exactly when to engage in activities such as ticketing and course registrations.  
 It is a reimplementation of [the previous project](https://github.com/r8btx/Server-Clock) with some improvements and additional features.
 
 ## Disclaimer
 
 While **Server Clock** aims to be accurate, no warranty is given. Use at your own risk!  
-**This repository is currently undergoing active maintenance. You may need to visit again for the latest updates. [[ChangeLog](./changelog.md)]**
+**This repository is currently undergoing active maintenance. You may need to visit again for the latest updates.**  
+[[ChangeLog](./changelog.md)]
 
 ## Quick Setup
 
-- The most up-to-date bookmarklets are automatically generated on [Server Clock bookmarklet distribution page](https://r8btx.github.io/Server-Clock-Bookmarklet/page). For a quick setup, visit the page and follow the instructions.
+- The most up-to-date bookmarklets are automatically generated on **[Server Clock bookmarklet distribution page](https://r8btx.github.io/Server-Clock-Bookmarklet/page)**. For a quick setup, visit the page and follow the instructions.
 
 If you wish to generate the bookmarklet manually from the source, you can do so using [this tool](https://chriszarate.github.io/bookmarkleter/).
 
