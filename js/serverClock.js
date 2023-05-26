@@ -1,405 +1,414 @@
-(() => {
-  let clock;
-  let clockTime; // Final estimation
-  let adjustment;
-  let adjustments = []; // A pool of clock adjustments (client/server time difference)
-  let best_at_hand;
-  let repeated = 0;
-  let stop = false;
-  const min_repeat = 5;
-  const max_repeat = 25;
-  const timeout_time = 5000; // In msec. Will retry request after this time
-  const tolerance_err = 125;
-  const tolerance_outlier = 200;
+const scb_version = '1.0';
+let adjustment; // The chosen estimation
+let adjustments = []; // A pool of clock adjustments (client/server time difference)
+let repeated = 0;
+let best_at_hand;
 
-  // Request current page
-  const url = window.location.href;
+const min_repeat = 6;
+const max_repeat = 25;
+const timeout_time = 5000; // In msec. Will retry request after this time
+const tolerance_err = 125;
+const tolerance_outlier = 200;
 
-  // Create a request object with no-cache headers
-  // This prevents looking up 'date' header from cached responses
-  const request = new Request(url, {
-    method: 'GET',
-    cache: 'no-store',
-    headers: new Headers({
-      Connection: 'keep-alive',
-      'Cache-Control': 'no-cache',
-      Pragma: 'no-cache',
-      Expires: '0',
-    }),
+const getName = (seed, offset) => `e${(seed + offset).toString(16)}`;
+
+const name_seed = Math.floor(Math.random() * (2 << 25));
+const d_clock = getName(name_seed, 0);
+const d_time = getName(name_seed, 1);
+const d_msg = getName(name_seed, 2);
+const d_menu = getName(name_seed, 3);
+const d_menuitem = getName(name_seed, 4);
+
+// Request current page
+const url = window.location.href;
+
+// Create a request object with no-cache headers
+// This prevents looking up 'date' header from cached responses
+const request = new Request(url, {
+  method: 'GET',
+  cache: 'no-store',
+  headers: new Headers({
+    Connection: 'keep-alive',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+    Expires: '0',
+  }),
+});
+
+const updateMessage = (msg) => {
+  const e_msg = document.getElementById(d_msg);
+  if (!e_msg) return;
+  switch (msg) {
+    case 0:
+      e_msg.textContent = '';
+      break;
+    case 1:
+      e_msg.textContent = 'SYNCHRONIZING...';
+      e_msg.style.color = '#3cb371';
+      break;
+    case 2:
+      e_msg.textContent = 'INACCURACY WARNING';
+      e_msg.style.color = '#ffca28';
+      break;
+    case 3:
+      e_msg.textContent = 'HTTP REQUEST ERROR';
+      e_msg.style.color = '#ff5252';
+      break;
+  }
+};
+
+// Can be more accurate than using `Date`
+const getTime = () => performance.timeOrigin + performance.now();
+
+// Try to target end points (least & max truncation)
+const getDelay = (elapsed, repeated) => {
+  if (!best_at_hand) return 250;
+  let delay = 0;
+  let upper = 0;
+  while (delay <= 0) {
+    upper += 1000;
+    delay = upper - elapsed - ((getTime() + best_at_hand) % 1000) - (repeated % 2) * 100;
+  }
+  return delay;
+};
+
+// Determine if the collected sample size is sufficient to accurately estimate the server clock
+const isSampleSufficient = () => {
+  if (repeated < min_repeat) return false;
+  if (repeated >= max_repeat) {
+    console.warn('Inaccuracy Warning: Maximum repeat reached.');
+    updateMessage(2);
+    return true;
+  }
+
+  // Find smallest, second smallest, largest, and second largest value
+  adjustments = adjustments.sort((a, b) => b - a);
+  const min = adjustments[adjustments.length - 1];
+  const min2 = adjustments[adjustments.length - 2];
+  const max = adjustments[0];
+  const max2 = adjustments[1];
+
+  // Current best guess of the time difference
+  best_at_hand = max;
+
+  // Return whether the maximum value and the minimum value is around 1 sec (max truncation difference)
+  return 1000 - tolerance_err <= max - min && min2 - min < tolerance_outlier && max - max2 < tolerance_outlier;
+};
+
+// Choose one adjustment to apply
+const chooseAdjustment = () => {
+  const candidates = [];
+  for (let i = 0; i < adjustments.length; i++) {
+    for (let j = adjustments.length - 1; j >= 0; j--) {
+      if (adjustments[i] - adjustments[j] < 1000) {
+        candidates.push([j - i, i]);
+        break;
+      }
+    }
+  }
+  candidates.sort((a, b) => b - a);
+  adjustment = adjustments[candidates[0][1]];
+
+  console.log('[Adjustments]');
+  adjustments.forEach((element) => {
+    console.log(element / 1000);
+  });
+  console.log('The chosen adjustment is', adjustment / 1000, 'sec.');
+  updateMessage(0);
+};
+
+// Collect adjustments repeatedly using a recursive function
+function run() {
+  let servertime = 0;
+  let elapsed = 0;
+  let timeout;
+  let replied;
+
+  // Create a PerformanceObserver
+  const observer = new PerformanceObserver((list) => {
+    const entry = list.getEntries().find(({ name }) => name === url);
+    if (entry) {
+      // Time elapsed since the request was made
+      elapsed = entry.requestStart - entry.startTime + (entry.responseStart - entry.requestStart) / 2;
+    }
+
+    if (servertime && elapsed) {
+      clearTimeout(timeout);
+      if (!replied) return;
+
+      // Calculate client/server time difference based on HTTP `date` header
+      // Accomodate estimated elapsed time (time taken before server recorded `date`)
+      adjustments.push(servertime - (clienttime + elapsed));
+      console.log('Collected an adjustment');
+      repeated++;
+
+      // Repeat the process using recursive function
+      // When done, decide which adjustment to use
+      if (!isSampleSufficient()) {
+        setTimeout(run, getDelay(elapsed, repeated));
+      } else {
+        chooseAdjustment();
+      }
+    }
+    observer.disconnect();
   });
 
-  function getTime() {
-    return performance.timeOrigin + performance.now();
-  }
+  // Make it a resource observer
+  observer.observe({ type: 'resource' });
 
-  // Try to target end points (least & max truncation)
-  function getDelay(elapsed, repeated) {
-    if (!best_at_hand) return 250;
-    let delay = 0;
-    let upper = 0;
-    while (delay <= 0) {
-      upper += 1000;
-      delay = upper - elapsed - ((getTime() + best_at_hand) % 1000) - (repeated % 2) * 100;
-    }
-    return delay;
-  }
+  // Define client time. Will be used to calculate time difference.
+  const clienttime = getTime();
 
-  // Determine if the collected sample size is sufficient to accurately estimate the server clock
-  function isSampleSufficient() {
-    if (repeated < min_repeat) {
-      return false;
-    }
-    if (repeated >= max_repeat) {
-      console.log('Inaccuracy Warning: Maximum repeat reached.');
-      return true;
-    }
-    let min = Infinity;
-    let min2 = Infinity;
-    let max = -Infinity;
-    let max2 = -Infinity;
+  // Make a HTTP request
+  fetch(request)
+    .then((response) => {
+      // Extract server date time from the response headers
+      servertime = Date.parse(response.headers.get('date'));
+      replied = true;
 
-    // Find smallest, second smallest, largest, and second largest value
-    for (let i = 0; i < adjustments.length; i++) {
-      if (adjustments[i] < min) {
-        min2 = min;
-        min = adjustments[i];
-      } else if (adjustments[i] < min2) {
-        min2 = adjustments[i];
-      }
-
-      if (adjustments[i] > max) {
-        max2 = max;
-        max = adjustments[i];
-      } else if (adjustments[i] > max2) {
-        max2 = adjustments[i];
-      }
-    }
-
-    // Current best guess of the time difference
-    best_at_hand = max;
-
-    // Return whether the maximum value and the minimum value is around 1 sec (max truncation difference)
-    return 1000 - tolerance_err <= max - min && min2 - min < tolerance_outlier && max - max2 < tolerance_outlier;
-  }
-
-  // Choose one adjustment to apply
-  // See the previous project for the justification of this method
-  function chooseAdjustment() {
-    let i = 0;
-    let candidates = [];
-    let candidate_done = false;
-
-    adjustments.sort(function (a, b) {
-      return b - a;
+      // Fix incomplete response issue
+      return response.text();
+    })
+    .catch((error) => {
+      console.error(error);
+      clearTimeout(timeout);
+      updateMessage(3);
+      replied = false;
     });
 
-    while (i < adjustments.length && !candidate_done) {
-      for (let j = adjustments.length - 1; j >= 0; j--) {
-        if (adjustments[i] - adjustments[j] < 1000) {
-          if (j === adjustments.length - 1) {
-            candidate_done = true;
-          }
-          let cc = j - i;
-          candidates.push([cc, i]);
-          break;
-        }
-      }
-      i++;
-    }
-    candidates.sort(function (a, b) {
-      return b - a;
-    });
-    adjustment = adjustments[candidates[0][1]];
+  // Setup a timeout timer
+  // After some time, it will retry
+  timeout = setTimeout(() => {
+    console.log('Request timed out. Timeout:', timeout_time / 1000, 'sec.');
+    observer.disconnect();
+    run();
+  }, timeout_time);
+  updateMessage(1);
+}
 
-    console.log('[Adjustments]');
-    adjustments.forEach((element) => {
-      console.log(element / 1000);
-    });
-    console.log('The chosen adjustment is', adjustment / 1000, 'sec.');
-  }
+function displayClock() {
+  let clockTime = getTime();
+  let stop = false;
+  let clock;
 
-  // Collect adjustments repeatedly using a recursive function
-  function run() {
-    let servertime = 0;
-    let elapsed = 0;
-    let timeout;
+  const createClockElements = () => {
+    // Create clock elements
+    const frameElement = document.createElement('div');
+    frameElement.id = d_clock;
 
-    // Create a PerformanceObserver
-    const observer = new PerformanceObserver((list) => {
-      list
-        .getEntries()
-        .filter(({ name }) => name === url)
-        .forEach((e) => {
-          // Time elapsed since the request was made
-          elapsed = e.requestStart - e.startTime + (e.responseStart - e.requestStart) / 2;
-        });
+    const timeElement = document.createElement('span');
+    timeElement.textContent = '00:00:00 NA';
+    timeElement.id = d_time;
+    frameElement.appendChild(timeElement);
 
-      if (servertime && elapsed) {
-        // Clear the timeout
-        clearTimeout(timeout);
-
-        // Calculate client/server time difference based on HTTP `date` header
-        // Accomodate estimated elapsed time (time taken before server recorded `date`)
-        adjustments.push(servertime - (clienttime + elapsed));
-        console.log('Collected an adjustment');
-        repeated++;
-
-        // Repeat the process using recursive function
-        // When done, decide which adjustment to use
-        if (!isSampleSufficient()) {
-          setTimeout(run, getDelay(elapsed, repeated));
-        } else {
-          chooseAdjustment();
-        }
-      }
-      observer.disconnect();
-    });
-
-    // Make it a resource observer
-    observer.observe({ type: 'resource' });
-
-    // Define client time. Will be used to calculate time difference.
-    let clienttime = getTime();
-
-    // Make a HTTP request
-    fetch(request)
-      .then((response) => {
-        // Extract server date time from the response headers
-        servertime = Date.parse(response.headers.get('date'));
-
-        // This fixes incomplete response issue
-        const r = response.text();
-      })
-      .catch((error) => {
-        console.error('Fetch Error:', error);
-      });
-
-    // Setup a timeout timer
-    // After some time, it will retry
-    timeout = setTimeout(() => {
-      console.log('Request timed out. Timeout:', timeout_time / 1000, 'sec.');
-      observer.disconnect();
-      run();
-    }, timeout_time);
-  }
-
-  function displayClock() {
-    // Generate names for styles
-    let style_clock = Math.floor(Math.random() * (2 << 25)).toString(16);
-    let style_menu = Math.floor(Math.random() * (2 << 25)).toString(16);
-    let style_menuitem = Math.floor(Math.random() * (2 << 25)).toString(16);
-
-    let styles = `
-    #e${style_clock} { 
-        user-select: none;
-        z-index: 9998;
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        color: #000;
-        background: #f2f2f2;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        padding: 12px;
-        cursor: pointer;
-        transition: box-shadow 0.3s ease;
-        font-family: Arial, sans-serif;
-        font-size: 1.125rem;
-        line-height: 1.75rem;
-    }
-    #e${style_clock}:hover {
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    }
-    #e${style_menu} {
-        user-select: none;
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        position: fixed;
-        color: #000;
-        background: #fff;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-        border-radius: 4px;
-        padding: 6px 0;
-        font-family: Arial, sans-serif;
-        font-size: 1.125rem;
-        line-height: 1.75rem;
-    } 
-    .e${style_menuitem} {
-        display: block;
-        padding: 6px 12px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-    }
-    .e${style_menuitem}:hover {
-        background-color: #3CB371;
-        color: white;
-    }`;
-
-    const menuItems = [
-      {
-        label: 'Rerun',
-        action: () => {
-          console.log('Resynchronizing...');
-          adjustments.length = 0;
-          repeated = 0;
-          best_at_hand = 0;
-          run();
-        },
-      },
-      {
-        label: 'Visit project page',
-        action: () => {
-          console.log('Opening the project page...');
-          window.open('https://github.com/r8btx/Server-Clock-Bookmarklet/', '_blank');
-        },
-      },
-      {
-        label: 'Exit',
-        action: () => {
-          console.log(document.currentScript);
-          stop = true;
-          document.body.removeChild(clockElement);
-          document.head.removeChild(styleSheet);
-          if (document.currentScript) {
-            document.body.removeChild(document.currentScript);
-          }
-          console.log('Termination triggered.');
-        },
-      },
-    ];
-
-    // Create the clock element
-    const clockElement = document.createElement('div');
-
-    // Set properties
-    clockElement.textContent = 'Synchronizing the clock...';
-    clockElement.id = `e${style_clock}`;
+    const messageElement = document.createElement('span');
+    messageElement.id = d_msg;
+    frameElement.appendChild(messageElement);
 
     // Function to handle dragging
-    function handleDrag(event) {
-      let initialX = event.clientX - clockElement.offsetLeft;
-      let initialY = event.clientY - clockElement.offsetTop;
+    const handleDrag = (event) => {
+      let initialX = event.clientX - frameElement.offsetLeft;
+      let initialY = event.clientY - frameElement.offsetTop;
 
-      function handleMove(event) {
+      const handleMove = (event) => {
         const newX = event.clientX - initialX;
         const newY = event.clientY - initialY;
 
-        const borderX = window.innerWidth - clockElement.offsetWidth;
-        const borderY = window.innerHeight - clockElement.offsetHeight;
+        const borderX = window.innerWidth - frameElement.offsetWidth;
+        const borderY = window.innerHeight - frameElement.offsetHeight;
 
         const applyX = Math.max(0, Math.min(newX, borderX));
         const applyY = Math.max(0, Math.min(newY, borderY));
 
-        clockElement.style.left = `${applyX}px`;
-        clockElement.style.top = `${applyY}px`;
-      }
+        frameElement.style.left = `${applyX}px`;
+        frameElement.style.top = `${applyY}px`;
+      };
 
-      function handleRelease() {
+      const handleRelease = () => {
         document.removeEventListener('mousemove', handleMove);
         document.removeEventListener('mouseup', handleRelease);
-      }
+      };
 
       document.addEventListener('mousemove', handleMove);
       document.addEventListener('mouseup', handleRelease);
-    }
+    };
 
     // Attach event listener for dragging
-    clockElement.addEventListener('mousedown', handleDrag);
+    frameElement.addEventListener('mousedown', handleDrag);
+    return [frameElement, timeElement, messageElement];
+  };
 
-    function attachContextMenu(element, menuItems) {
-      // Prevent the default context menu from showing
-      element.addEventListener('contextmenu', (event) => {
-        event.preventDefault();
+  const attachContextMenu = (element, menuItems) => {
+    // Prevent the default context menu from showing
+    element.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
 
-        // Remove previous contextmenu
-        if (document.getElementById(`e${style_menu}`)) {
-          const menu = document.getElementById(`e${style_menu}`);
-          menu.style.top = `${event.clientY}px`;
-          menu.style.left = `${event.clientX}px`;
-          return;
-        }
-
-        // Create the context menu element
-        const menu = document.createElement('div');
-        menu.id = `e${style_menu}`;
+      // Reuse previous contextmenu if exists
+      if (document.getElementById(d_menu)) {
+        const menu = document.getElementById(d_menu);
         menu.style.top = `${event.clientY}px`;
         menu.style.left = `${event.clientX}px`;
+        return;
+      }
 
-        // Create and append menu items
-        for (const item of menuItems) {
-          const menuItem = document.createElement('div');
-          menuItem.textContent = item.label;
-          menuItem.addEventListener('click', item.action);
-          menuItem.classList.add(`e${style_menuitem}`);
-          menu.appendChild(menuItem);
-        }
+      // Create the context menu element
+      const menu = document.createElement('div');
+      menu.id = d_menu;
+      menu.style.top = `${event.clientY}px`;
+      menu.style.left = `${event.clientX}px`;
 
-        // Close the menu on clicking outside
-        const closeMenu = () => {
-          document.body.removeChild(menu);
-          document.removeEventListener('click', closeMenu);
-        };
+      // Create and append menu items
+      for (const item of menuItems) {
+        const menuItem = document.createElement('div');
+        menuItem.textContent = item.label;
+        menuItem.addEventListener('click', item.action);
+        menuItem.classList.add(d_menuitem);
+        menu.appendChild(menuItem);
+      }
 
-        // Attach the menu to the body
-        document.body.appendChild(menu);
+      // Close the menu
+      const closeMenu = () => {
+        document.body.removeChild(menu);
+        document.removeEventListener('click', closeMenu);
+      };
 
-        // Close the menu when clicking outside
-        document.addEventListener('click', closeMenu);
-      });
-    }
+      // Attach the menu to the body
+      document.body.appendChild(menu);
 
-    // Attach contextmenu
-    attachContextMenu(clockElement, menuItems);
+      // Close the menu on clicking outside
+      document.addEventListener('click', closeMenu);
+    });
+  };
 
-    // Append styles
-    let styleSheet = document.createElement('style');
+  // Append styles
+  const styleSheet = document.createElement('style');
+  const appendStyles = (styles) => {
     styleSheet.innerText = styles.replace(/\n/g, '').replace(/\s+/g, ' ');
     document.head.appendChild(styleSheet);
+  };
 
-    // Append the clockElement to the body
-    document.body.appendChild(clockElement);
+  // Append the clock frame to the body
+  const appendClockFrame = (clockFrame) => {
+    document.body.appendChild(clockFrame);
+  };
 
-    function formatTime() {
-      const time = new Date(clockTime);
-      let hours = time.getHours();
-      let minutes = time.getMinutes();
-      let seconds = time.getSeconds();
-      const amPm = hours >= 12 ? 'PM' : 'AM';
+  // Contextmenu action rerun
+  const action_rerun = () => {
+    console.log('Resynchronizing...');
+    adjustments.length = 0;
+    repeated = 0;
+    best_at_hand = 0;
+    run();
+  };
 
-      // Convert hours to 12-hour format
-      hours = hours % 12;
-      hours = hours ? hours : 12;
+  // Contextmenu action visitproject
+  const action_visitproject = () => {
+    console.log('Opening the project page...');
+    window.open('https://github.com/r8btx/Server-Clock-Bookmarklet/', '_blank');
+  };
 
-      // Pad numbers with leading zeros
-      hours = String(hours).padStart(2, '0');
-      minutes = String(minutes).padStart(2, '0');
-      seconds = String(seconds).padStart(2, '0');
-
-      return `${hours}:${minutes}:${seconds} ${amPm}`;
+  // Contextmenu action exit
+  const action_exit = () => {
+    stop = true;
+    document.body.removeChild(clockElements[0]);
+    document.head.removeChild(styleSheet);
+    if (document.currentScript) {
+      document.body.removeChild(document.currentScript);
     }
+    clearTimeout(clock);
+    console.log('Server Clock finished.');
+  };
 
-    function updateClock() {
-      // Update clock every beginning of a second
-      clockTime = getTime() + adjustment;
-      clockElement.textContent = formatTime();
-      clock = stop ? null : setTimeout(updateClock, 1000 - (clockTime % 1000));
-    }
+  // Format time to string
+  const formatTime = () => {
+    const formatDigit = (d) => String(d).padStart(2, '0');
+    const time = new Date(clockTime);
+    const hours = formatDigit(time.getHours() % 12 || 12);
+    const minutes = formatDigit(time.getMinutes());
+    const seconds = formatDigit(time.getSeconds());
+    const amPm = time.getHours() >= 12 ? 'PM' : 'AM';
+    return `${hours}:${minutes}:${seconds} ${amPm}`;
+  };
 
-    function delayedRun() {
-      let delayedRun = setInterval(() => {
-        if (isSampleSufficient()) {
-          clearInterval(delayedRun);
-          updateClock();
-        }
-      }, 1000);
-    }
+  // Update clock every beginning of a second
+  const updateClock = () => {
+    clockTime = getTime() + adjustment;
+    clockElements[1].textContent = formatTime();
+    clock = stop ? null : setTimeout(updateClock, 1000 - (clockTime % 1000));
+  };
 
-    delayedRun();
+  const delayedRun = () => {
+    const interval = setInterval(() => {
+      if (isSampleSufficient()) {
+        clearInterval(interval);
+        updateClock();
+      }
+    }, 1000);
+  };
+
+  const clockElements = createClockElements();
+  const menuItems = [
+    { label: 'Rerun', action: action_rerun },
+    { label: 'Visit project page', action: action_visitproject },
+    { label: 'Exit', action: action_exit },
+  ];
+
+  attachContextMenu(clockElements[0], menuItems);
+  appendStyles(`
+  #${d_clock}:hover,
+  #${d_menu} {
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   }
+  #${d_clock},
+  #${d_menu} {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    border-radius: 4px;
+    font-family: Arial, sans-serif;
+    position: fixed;
+    left: 10px;
+    background: #fff;
+    z-index: 9999;
+  }
+  #${d_clock} {
+    top: 10px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    align-items: center;
+    transition: box-shadow 0.3s;
+  }
+  #${d_msg} {
+    line-height: 0;
+    font-size: 0.6rem;
+    font-weight: 700;
+  }
+  #${d_time} {
+    font-size: 1.25rem;
+    line-height: 1.75;
+  }
+  #${d_menu} {
+    padding: 6px 0;
+  }
+  .${d_menuitem} {
+    font-family: Arial, sans-serif;
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  .${d_menuitem}:hover {
+    background-color: #3cb371;
+    color: #fff;
+  }`);
+  appendClockFrame(clockElements[0]);
+  delayedRun();
+}
 
-  // Start
-  console.log('Server Clock started.');
-  run();
-  displayClock();
-})();
+// Start
+console.log(`Server Clock started. [Version ${scb_version}]`);
+run();
+displayClock();
