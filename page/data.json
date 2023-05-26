@@ -5,7 +5,7 @@
       "src": "https://r8btx.github.io/Server-Clock-Bookmarklet/js/serverClock.js",
       "note": "A full, independent version of Server Clock. \nYou may have to visit this page and update your bookmarklet manually.",
       "instruction": "Drag the above link to your browser bookmark bar.",
-      "version": "v0.9"
+      "version": "v1.0"
     },
     {
       "name": "Launcher",
@@ -19,7 +19,7 @@
       "src": "https://r8btx.github.io/Server-Clock-Bookmarklet/js/test_accuracy.js",
       "note": "A console-only, test version of Server Clock.",
       "instruction": "Drag the above link to your browser bookmark bar.\nVisit www.timeapi.io for testing.",
-      "version": "v0.9"
+      "version": "v1.0"
     }
   ]
 }
