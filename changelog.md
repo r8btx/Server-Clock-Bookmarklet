@@ -2,6 +2,8 @@
 
 ## Server Clock
 
+[v1.0] Updated UI, including new status message display
+[v1.0] Code rewrite
 [v0.9] Clean up upon exit  
 [v0.8] Combined 'Add 5 more samples' and 'Empty collected samples' into 'Rerun' in UI  
 [v0.8] Attempt to increase the estimation accuracy with less number of requests.  
