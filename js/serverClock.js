@@ -370,6 +370,7 @@ function displayClock() {
     position: fixed;
     left: 10px;
     background: #fff;
+    color: #000;
     z-index: 9999;
   }
   #${d_clock} {
