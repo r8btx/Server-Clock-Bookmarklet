@@ -2,8 +2,8 @@
 
 ## Server Clock
 
-[v1.0] Updated UI, including new status message display
-[v1.0] Code rewrite
+[v1.0] Updated UI, including new status message display  
+[v1.0] Code rewrite  
 [v0.9] Clean up upon exit  
 [v0.8] Combined 'Add 5 more samples' and 'Empty collected samples' into 'Rerun' in UI  
 [v0.8] Attempt to increase the estimation accuracy with less number of requests.  
@@ -23,6 +23,8 @@
 
 ## Distribution Page
 
+[v0.4] Now support Dark theme  
+[v0.4] Code rewrite  
 [v0.3] Fixed the distribution page not functioning.  
 [v0.2] Recreated the bookmarklet distribution page with an experimental feature of automatic bookmarklet generation.  
 [v0.1] Created [the bookmarklet page](https://r8btx.github.io/Server-Clock-Bookmarklet/page) to simplify the setup process.

@@ -1,80 +1,144 @@
-html,
-body {
-  user-select: none;
-  -webkit-user-drag: none;
+body,
+html {
   margin: 0;
-  overflow: hidden;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  line-height: 1.5;
+  color: #333;
 }
-
-*,
-*:before,
-*:after {
-  box-sizing: border-box;
-}
-
-/* Background */
 .background {
   background-color: #f5f5f5;
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-family: 'Roboto', sans-serif;
 }
-
-/* Wrapper */
 .wrapper {
   background-color: #fff;
-  padding: 40px;
+  padding: 2.5rem;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
-
 .section {
-  margin-bottom: 40px;
+  margin-bottom: 2.5rem;
 }
-
 .title {
-  font-size: 24px;
+  font-size: 2rem;
   font-weight: 500;
-  margin-bottom: 16px;
+  margin-bottom: 1rem;
 }
-
-p {
-  font-size: 16px;
-  line-height: 1.5;
-  color: #666;
-  margin-bottom: 8px;
+p,
+a,
+.note {
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
 }
-
+p,
+a,
 select {
-  display: block;
-  width: 100%;
-  padding: 8px 12px;
-  font-size: 16px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  margin-bottom: 16px;
+  font-size: 1rem;
 }
-
 a {
-  width: fit-content;
   color: #2196f3;
   text-decoration: none;
-  display: block;
-  margin-top: 8px;
 }
-
-.bookmarklet:hover {
+a:hover {
   text-decoration: underline;
 }
-
 .note {
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #999;
-  margin-top: 8px;
 }
-
-.hidden {
-  display: none;
+select {
+  width: 100%;
+  height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: #f9f9f9;
+  color: #333;
+}
+select:focus {
+  outline: none;
+  border-color: #64b5f6;
+}
+select[multiple] option:checked {
+  background-color: #ccc;
+}
+select[multiple] option:hover {
+  background-color: #bbb;
+}
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #333;
+    color: #ccc;
+  }
+  .background {
+    background-color: inherit;
+  }
+  .wrapper {
+    background-color: #444;
+    box-shadow: 0 2px 4px rgba(255, 255, 255, 0.1);
+  }
+  select {
+    border-color: #777;
+    background-color: #222;
+    color: #ccc;
+  }
+  select[multiple] option:checked {
+    background-color: #555;
+  }
+  select[multiple] option:hover {
+    background-color: #444;
+  }
+  a {
+    color: #64b5f6;
+  }
+  .note {
+    color: #bbb;
+  }
+}
+@media (max-width: 768px) {
+  .wrapper {
+    padding: 1.5rem;
+  }
+  .title {
+    font-size: 1.5rem;
+  }
+  p,
+  select,
+  .note {
+    font-size: 0.875rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    .wrapper {
+      background-color: #555;
+    }
+    p,
+    select {
+      color: #aaa;
+    }
+  }
+}
+@media (max-width: 480px) {
+  .wrapper {
+    padding: 1rem;
+  }
+  .title {
+    font-size: 1.25rem;
+  }
+  p,
+  select,
+  .note {
+    font-size: 0.75rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    .wrapper {
+      background-color: #666;
+    }
+    p,
+    select {
+      color: #999;
+    }
+  }
 }
