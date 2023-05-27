@@ -139,6 +139,7 @@ function init() {
         keep_fargs: true,
         keep_infinity: true,
       },
+      mangle: { toplevel: true },
       wrap: false,
     };
 
