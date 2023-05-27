@@ -157,7 +157,7 @@ function init() {
         const encoded = encodeReserved(compressed);
         const bookmarkletCode = `javascript:void function(){${encoded}}();`; // Finalize bookmarklet generation
         bookmarklet.href = bookmarkletCode;
-        bookmarklet.innerHTML = '<b>Server Clock</b>';
+        bookmarklet.innerHTML = 'Server Clock';
         bookmarklet.addEventListener('click', copyOnClick); // Copy code on click
 
         // Update size

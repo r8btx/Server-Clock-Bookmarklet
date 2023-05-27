@@ -27,6 +27,9 @@ html {
   font-weight: 500;
   margin-bottom: 1rem;
 }
+.bookmarklet {
+  font-weight: bold;
+}
 p,
 a,
 .note {
