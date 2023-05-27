@@ -48,12 +48,14 @@ function copyOnClick(event) {
 
   try {
     navigator.clipboard.writeText(copyText.value);
-    alert(
+    prompt(
       'Code copied to clipboard!\n' +
         'You can now create a bookmarklet by following these steps:\n' +
         '1. Create a regular bookmark in your browser.\n' +
         '2. In the URL section, paste the copied code.\n' +
-        '3. Done!',
+        '3. Done!\n\n' +
+        'Code in case your browser blocks automatic copying:',
+      copyText.value,
     );
   } catch (error) {
     console.error('Unable to copy code to clipboard:', error);
