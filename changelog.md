@@ -23,7 +23,8 @@
 
 ## Distribution Page
 
-[v0.4] Now support Dark theme  
+[v0.5] Clicking the bookmarklet link will copy the code to the clipboard.  
+[v0.4] Now supports Dark theme  
 [v0.4] Code rewrite  
 [v0.3] Fixed the distribution page not functioning.  
 [v0.2] Recreated the bookmarklet distribution page with an experimental feature of automatic bookmarklet generation.  
