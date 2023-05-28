@@ -12,7 +12,7 @@
       "src": "https://r8btx.github.io/Server-Clock-Bookmarklet/js/launcher.js",
       "note": "A lightweight launcher that will always fetch and run the latest version of Server Clock. \nThe launcher may not work on webpages with strict content security policy.",
       "instruction": "Drag the above link to your browser bookmark bar.\nOr, you can click the link to copy the code.",
-      "version": "v0.1"
+      "version": "v0.2"
     },
     {
       "name": "test_accuracy.js",
