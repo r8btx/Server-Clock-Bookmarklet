@@ -19,6 +19,7 @@
 
 ## Launcher
 
+[v0.2] Notify policy errors & link to the distribution page  
 [v0.1] Created [launcher.js](./js/launcher.js)
 
 ## Distribution Page
