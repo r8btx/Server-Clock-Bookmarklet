@@ -2,6 +2,9 @@
 
 ## Server Clock
 
+[v1.1] Warns inaccuracy if pre-defined `validFor` time passes (default: 20mins)  
+[v1.1] Users can now interact with the bookmarklet using a browser console (accessed via ServerClock)  
+[v1.1] Code refactoring  
 [v1.0] Updated UI, including new status message display  
 [v1.0] Code rewrite  
 [v0.9] Clean up upon exit  
