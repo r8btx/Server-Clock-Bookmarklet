@@ -2,6 +2,9 @@
 
 ## Server Clock
 
+[v1.2] test_accuracy.js only supports a single instance (accessed via ServerClock)  
+[v1.2] Multiple instances of Server Clock is available (accessed via ServerClocks)  
+[v1.2] Exit via console is now available  
 [v1.1] Warns inaccuracy if pre-defined `validFor` time passes (default: 20mins)  
 [v1.1] Users can now interact with the bookmarklet using a browser console (accessed via ServerClock)  
 [v1.1] Improvements such as stricter outlier handling, optimized getDelay(), no display delay after initial sync, etc.  

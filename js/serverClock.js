@@ -1,23 +1,27 @@
 'use strict';
 
-let ServerClock = {};
-
-// Version
-ServerClock.version = '1.1';
-
-// Configs
-ServerClock.config = {
-  sampleMinimum: 6,
-  sampleMaximum: 25,
-  timeoutAfter: 5000, // In msec. Will retry request after this time
-  validFor: 1200, // In sec. Will assume to be inaccurate after x seconds
-  errorTolerance: 125,
-  outlierTolerance: 200,
+let ServerClock = {
+  version: '1.2',
+  config: {
+    sampleMinimum: 6,
+    sampleMaximum: 25,
+    timeoutAfter: 5000, // In msec. Will retry request after this time
+    validFor: 1200, // In sec. Will assume to be inaccurate after x seconds
+    errorTolerance: 125,
+    outlierTolerance: 200,
+  },
+  stop: false,
+  targetURL: window.location.href,
+  exit() {
+    ServerClock.UI.removeUI();
+    // delete window.ServerClock;
+    const index = window.ServerClocks.indexOf(ServerClock);
+    window.ServerClocks.splice(index, 1);
+    if (window.ServerClocks.length === 0) delete window.ServerClocks;
+    ServerClock = undefined;
+    console.log('Server Clock finished.');
+  },
 };
-ServerClock.stop = false;
-
-// Request current page by default
-ServerClock.targetURL = window.location.href;
 
 // Time related
 ((Time, $, undefined) => {
@@ -338,15 +342,13 @@ ServerClock.targetURL = window.location.href;
     };
 
     // Contextmenu action exit
-    const action_exit = () => {
+    const action_exit = ServerClock.exit;
+    UI.removeUI = () => {
+      // remove UI
       ServerClock.stop = true;
+      if (updateTimer !== undefined) clearTimeout(updateTimer);
       document.body.removeChild(clockElements[0]);
       document.head.removeChild(styleSheet);
-      if (document.currentScript) {
-        document.body.removeChild(document.currentScript);
-      }
-      delete window.ServerClock;
-      console.log('Server Clock finished.');
     };
 
     // Add contextmenu
@@ -443,5 +445,8 @@ ServerClock.targetURL = window.location.href;
 (() => {
   console.log(`Server Clock started. [Version ${ServerClock.version}]`);
   ServerClock.Time.synchronize().then(ServerClock.UI.startUpdateTimer);
-  window.ServerClock = ServerClock;
+  if (typeof window.ServerClocks === 'undefined') {
+    window.ServerClocks = [];
+  }
+  window.ServerClocks.push(ServerClock);
 })();
