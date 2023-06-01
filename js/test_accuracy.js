@@ -2,14 +2,13 @@
 
 if (typeof window.ServerClock === 'undefined') {
   let ServerClock = {
-    version: '1.2',
+    version: '1.3 alpha',
     config: {
-      sampleMinimum: 6,
-      sampleMaximum: 25,
+      sampleMinimum: 3,
+      sampleMaximum: 10,
       timeoutAfter: 5000, // In msec. Will retry request after this time
       validFor: 1200, // In sec. Will assume to be inaccurate after x seconds
-      errorTolerance: 125,
-      outlierTolerance: 200,
+      errorTolerance: 100,
     },
     stop: false,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -35,6 +34,7 @@ if (typeof window.ServerClock === 'undefined') {
   // Time related
   ((Time, $, undefined) => {
     let differenceSamples = []; // A pool of potential clock adjustments (client/server time difference)
+    let sampleRequestCount;
     let currentAdjustment;
     let adjustment = 0; // The chosen adjustment
     let lastSynchronized;
@@ -59,21 +59,27 @@ if (typeof window.ServerClock === 'undefined') {
     Time.synchronize = () => {
       lastSynchronized = performance.now();
       differenceSamples.length = 0;
+      sampleRequestCount = 0;
       currentAdjustment = undefined;
       return new Promise((resolve) => {
-        synchronize().then(resolve);
+        synchronize().then(resolve).catch();
       });
     };
 
     // Synchronize
     const synchronize = () =>
-      new Promise((resolve, reject) => {
+      new Promise((resolve) => {
         let HTTPTime = 0;
         let API_Time;
         let elapsedSinceRequest = 0;
         let elapsedSinceResponse;
         let requestTimeout;
         let receivedResponse;
+        sampleRequestCount++;
+
+        // For sending stop signal when timeout
+        const controller = new AbortController();
+        const signal = controller.signal;
 
         // Create a PerformanceObserver
         const observer = new PerformanceObserver((list) => {
@@ -118,7 +124,7 @@ if (typeof window.ServerClock === 'undefined') {
         const clientTime = Time.getClientTime();
 
         // Make a HTTP request
-        fetch(request)
+        fetch(request, { signal: signal })
           .then((response) => {
             // Extract server date time from the response headers
             HTTPTime = Date.parse(response.headers.get('date'));
@@ -129,11 +135,9 @@ if (typeof window.ServerClock === 'undefined') {
               API_Time = Date.parse(j.dateTime);
             });
           })
-          .catch((error) => {
-            console.error(error);
+          .catch(() => {
             clearTimeout(requestTimeout);
             receivedResponse = false;
-            reject();
           });
 
         // Setup a timeout timer
@@ -141,49 +145,48 @@ if (typeof window.ServerClock === 'undefined') {
         requestTimeout = setTimeout(() => {
           console.log('Request timed out. Timeout:', ServerClock.config.timeoutAfter / 1000, 'sec.');
           observer.disconnect();
-          resolve(synchronize());
+          controller.abort();
+          if (sampleRequestCount < ServerClock.config.sampleMaximum || differenceSamples.length == 0) {
+            setTimeout(() => resolve(synchronize()), getDelay(elapsedSinceRequest));
+          } else {
+            console.warn('Inaccuracy Warning: Network not stable.');
+            chooseAdjustment();
+          }
         }, ServerClock.config.timeoutAfter);
       });
 
     const getDelay = (expectedElapseAfterRequest) => {
-      // Try to target end points (least & max truncation)
-      if (typeof currentAdjustment === 'undefined') return 250;
+      let precision = 1000 / Math.pow(2, differenceSamples.length);
+      const sampleOffset = Math.max(precision, ServerClock.config.errorTolerance);
+      const adjustedTime = Time.getClientTime() + currentAdjustment;
+      const delay = 1000 - ((adjustedTime + expectedElapseAfterRequest + sampleOffset) % 1000);
 
-      const AdjustedTime = Time.getClientTime() + currentAdjustment;
-      const sampleOffset = (differenceSamples.length % 2) * 100;
-      const delay = 1000 - ((AdjustedTime + expectedElapseAfterRequest + sampleOffset) % 1000);
       return delay;
     };
 
     // Determine if the collected sample size is sufficient to accurately estimate the server clock
     const isSampleSufficient = () => {
-      if (differenceSamples.length < ServerClock.config.sampleMinimum) return false;
-      if (differenceSamples.length >= ServerClock.config.sampleMaximum) {
-        console.warn('Inaccuracy Warning: Maximum repeat reached.');
+      if (sampleRequestCount < ServerClock.config.sampleMinimum) return false;
+      if (sampleRequestCount >= ServerClock.config.sampleMaximum) {
+        console.warn('Inaccuracy Warning: Request limit reached.');
         return true;
       }
 
       // Find smallest, second smallest, largest, and second largest value
       differenceSamples = differenceSamples.sort((a, b) => b[0] - a[0]);
       const min = differenceSamples[differenceSamples.length - 1][0];
-      const min2 = differenceSamples[differenceSamples.length - 2][0];
       const max = differenceSamples[0][0];
-      const max2 = differenceSamples[1][0];
+
+      currentAdjustment = max;
 
       // Likely outlier
       if (max - min > 1000) {
-        differenceSamples = differenceSamples.slice(1, differenceSamples - 1);
+        differenceSamples = differenceSamples.slice(1, differenceSamples.length - 1);
+        return false;
       }
 
-      // Current best guess of the time difference
-      currentAdjustment = max;
-
       // Return whether the maximum value and the minimum value is around 1 sec (max truncation difference)
-      return (
-        1000 - ServerClock.config.errorTolerance <= max - min &&
-        min2 - min < ServerClock.config.outlierTolerance &&
-        max - max2 < ServerClock.config.outlierTolerance
-      );
+      return 1000 - ServerClock.config.errorTolerance <= max - min;
     };
 
     // Choose one adjustment to apply
