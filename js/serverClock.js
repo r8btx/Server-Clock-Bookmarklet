@@ -1,452 +1,489 @@
-'use strict';
-
-let ServerClock = {
-  version: '1.2',
-  config: {
-    sampleMinimum: 6,
-    sampleMaximum: 25,
-    timeoutAfter: 5000, // In msec. Will retry request after this time
-    validFor: 1200, // In sec. Will assume to be inaccurate after x seconds
-    errorTolerance: 125,
-    outlierTolerance: 200,
-  },
-  stop: false,
+const config = {
+  sampleMinimum: 3,
+  sampleMaximum: 10,
+  timeoutAfter: 5000, // In msec. Will retry request after this time
+  validFor: 1200, // In sec. Will assume to be inaccurate after x seconds
+  errorTolerance: 100,
   targetURL: window.location.href,
-  exit() {
-    ServerClock.UI.removeUI();
-    // delete window.ServerClock;
-    const index = window.ServerClocks.indexOf(ServerClock);
-    window.ServerClocks.splice(index, 1);
-    if (window.ServerClocks.length === 0) delete window.ServerClocks;
-    ServerClock = undefined;
-    console.log('Server Clock finished.');
-  },
 };
+const defined = typeof window.ServerClocks !== 'undefined';
+let Time = defined
+  ? window.ServerClocks[0].class.Time
+  : class Time {
+      constructor(SC) {
+        this.SC = SC;
+        this.config = SC.config;
+        this.currentAdjustment = 0; // The chosen adjustment
+        this.lastSynchronized = 0;
+      }
 
-// Time related
-((Time, $, undefined) => {
-  let differenceSamples = []; // A pool of potential clock adjustments (client/server time difference)
-  let currentAdjustment;
-  let adjustment = 0; // The chosen adjustment
-  let lastSynchronized;
+      static getClientTime() {
+        return performance.timeOrigin + performance.now();
+      }
 
-  // Create a request object with no-cache headers
-  // This prevents looking up 'date' header from cached responses
-  const request = new Request(ServerClock.targetURL, {
-    method: 'GET',
-    cache: 'no-store',
-    headers: new Headers({
-      Connection: 'keep-alive',
-      'Cache-Control': 'no-cache',
-      Pragma: 'no-cache',
-      Expires: '0',
-    }),
-  });
+      getServerTime() {
+        return Time.getClientTime() + this.currentAdjustment;
+      }
 
-  Time.getClientTime = () => performance.timeOrigin + performance.now(); // Can be more accurate than using `Date`
-  Time.getServerTime = () => Time.getClientTime() + adjustment;
-  Time.getAdjustment = () => adjustment;
-  Time.getLastSynchronized = () => lastSynchronized;
-  Time.synchronize = () => {
-    lastSynchronized = performance.now();
-    ServerClock.UI.updateMessage('3cb371', 'SYNCHRONIZING...');
-    differenceSamples.length = 0;
-    currentAdjustment = undefined;
-    return new Promise((resolve) => {
-      synchronize().then(resolve);
-    });
-  };
+      synchronize() {
+        this.SC.stop = false;
+        this.lastSynchronized = performance.now();
+        let differenceSamples = []; // A pool of potential clock adjustments (client/server time difference)
+        let requestCount = 0;
+        let expectedElapseAfterRequest = 0;
+        this.SC.uiObject.updateMessage('3cb371', 'SYNCHRONIZING...');
 
-  // Synchronize
-  const synchronize = () =>
-    new Promise((resolve, reject) => {
-      let HTTPTime = 0;
-      let elapsedSinceRequest = 0;
-      let requestTimeout;
-      let receivedResponse;
+        return new Promise((resolve) => {
+          const recursiveSynchronization = async (resolver) => {
+            if (this.SC.stop) return;
+            try {
+              requestCount++;
+              const sample = await new Sample(this.SC).collect();
+              differenceSamples.push(sample.HTTPAdjustment);
+              differenceSamples.sort((a, b) => b - a);
+              this.currentAdjustment = differenceSamples[0];
+              expectedElapseAfterRequest = sample.elapsedSinceRequest;
 
-      // Create a PerformanceObserver
-      const observer = new PerformanceObserver((list) => {
-        const entry = list.getEntries().find(({ name }) => name === ServerClock.targetURL);
+              const nextStep = this.determineNextStep(
+                requestCount,
+                this.currentAdjustment,
+                differenceSamples[differenceSamples.length - 1],
+              );
 
-        // Time elapsed since the request was made
-        if (entry)
-          elapsedSinceRequest = entry.requestStart - entry.startTime + (entry.responseStart - entry.requestStart) / 2;
+              switch (nextStep) {
+                case 2:
+                  differenceSamples = differenceSamples.slice(1, -1);
+                case 1:
+                  setTimeout(
+                    () => recursiveSynchronization(resolver),
+                    this.getDelay(expectedElapseAfterRequest, differenceSamples.length),
+                  );
+                  break;
+                case 0:
+                  this.chooseAdjustment(differenceSamples);
+                  resolver();
+              }
+            } catch (error) {
+              if (requestCount < this.config.sampleMaximum || differenceSamples.length === 0) {
+                setTimeout(
+                  () => recursiveSynchronization(resolver),
+                  this.getDelay(expectedElapseAfterRequest, differenceSamples.length),
+                );
+              } else {
+                console.warn('Inaccuracy Warning: Request limit reached.');
+                this.SC.uiObject.updateMessage('ffca28', 'INACCURACY WARNING');
+                this.chooseAdjustment(differenceSamples);
+              }
+            }
+          };
+          recursiveSynchronization(resolve);
+        });
+      }
 
-        if (HTTPTime && elapsedSinceRequest) {
-          clearTimeout(requestTimeout);
-          if (!receivedResponse) return;
+      determineNextStep(requestCount, max, min) {
+        if (requestCount < this.config.sampleMinimum) return 1;
+        if (requestCount >= this.config.sampleMaximum) {
+          console.warn('Inaccuracy Warning: Request limit reached.');
+          this.SC.uiObject.updateMessage('ffca28', 'INACCURACY WARNING');
+          return 0;
+        }
+        if (max - min > 1000) return 2; // Likely outlier
 
-          // Calculate client/server time difference based on HTTP `date` header
-          // Accomodate estimated elapsed time (time taken before server recorded `date`)
-          differenceSamples.push(HTTPTime - (clientTime + elapsedSinceRequest));
-          console.log('Collected a difference sample.');
+        // Return whether the maximum value and the minimum value is around 1 sec (max truncation difference)
+        return 1000 - this.config.errorTolerance > max - min ? 1 : 0;
+      }
 
-          // Repeat the process using recursive function
-          // When done, decide which adjustment to use
-          if (!isSampleSufficient()) {
-            setTimeout(() => resolve(synchronize()), getDelay(elapsedSinceRequest));
-          } else {
-            chooseAdjustment();
-            resolve();
+      getDelay(expectedElapseAfterRequest, precisionLevel) {
+        const precision = 1000 / Math.pow(2, precisionLevel);
+        const sampleOffset = Math.max(precision, this.config.errorTolerance);
+        const adjustedTime = Time.getClientTime() + this.currentAdjustment;
+        const delay = 1000 - ((adjustedTime + expectedElapseAfterRequest + sampleOffset) % 1000);
+
+        return delay;
+      }
+
+      chooseAdjustment(differenceSamples) {
+        const candidates = [];
+        for (let i = 0; i < differenceSamples.length; i++) {
+          for (let j = differenceSamples.length - 1; j >= 0; j--) {
+            if (differenceSamples[i] - differenceSamples[j] < 1000) {
+              candidates.push([j - i, i]);
+              break;
+            }
           }
         }
-        observer.disconnect();
-      });
+        candidates.sort((a, b) => b[0] - a[0]);
+        this.currentAdjustment = differenceSamples[candidates[0][1]];
 
-      // Make it a resource observer
-      observer.observe({ type: 'resource' });
-
-      // Define client time. Will be used to calculate time difference.
-      const clientTime = Time.getClientTime();
-
-      // Make a HTTP request
-      fetch(request)
-        .then((response) => {
-          // Extract server date time from the response headers
-          HTTPTime = Date.parse(response.headers.get('date'));
-          receivedResponse = true;
-
-          // Fix incomplete response issue
-          return response.text();
-        })
-        .catch((error) => {
-          console.error(error);
-          clearTimeout(requestTimeout);
-          ServerClock.UI.updateMessage('ff5252', 'HTTP REQUEST ERROR');
-          receivedResponse = false;
-          reject();
+        console.log('[Adjustments]');
+        differenceSamples.forEach((element) => {
+          console.log(element / 1000);
         });
-
-      // Setup a timeout timer
-      // After some time, it will retry
-      requestTimeout = setTimeout(() => {
-        console.log('Request timed out. Timeout:', ServerClock.config.timeoutAfter / 1000, 'sec.');
-        observer.disconnect();
-        resolve(synchronize());
-      }, ServerClock.config.timeoutAfter);
-    });
-
-  const getDelay = (expectedElapseAfterRequest) => {
-    // Try to target end points (least & max truncation)
-    if (typeof currentAdjustment === 'undefined') return 250;
-
-    const AdjustedTime = Time.getClientTime() + currentAdjustment;
-    const sampleOffset = (differenceSamples.length % 2) * 100;
-    const delay = 1000 - ((AdjustedTime + expectedElapseAfterRequest + sampleOffset) % 1000);
-    return delay;
-  };
-
-  // Determine if the collected sample size is sufficient to accurately estimate the server clock
-  const isSampleSufficient = () => {
-    if (differenceSamples.length < ServerClock.config.sampleMinimum) return false;
-    if (differenceSamples.length >= ServerClock.config.sampleMaximum) {
-      console.warn('Inaccuracy Warning: Maximum repeat reached.');
-      ServerClock.UI.updateMessage('ffca28', 'INACCURACY WARNING');
-      return true;
-    }
-
-    // Find smallest, second smallest, largest, and second largest value
-    differenceSamples = differenceSamples.sort((a, b) => b - a);
-    const min = differenceSamples[differenceSamples.length - 1];
-    const min2 = differenceSamples[differenceSamples.length - 2];
-    const max = differenceSamples[0];
-    const max2 = differenceSamples[1];
-
-    // Likely outlier
-    if (max - min > 1000) {
-      differenceSamples = differenceSamples.slice(1, differenceSamples - 1);
-    }
-
-    // Current best guess of the time difference
-    currentAdjustment = max;
-
-    // Return whether the maximum value and the minimum value is around 1 sec (max truncation difference)
-    return (
-      1000 - ServerClock.config.errorTolerance <= max - min &&
-      min2 - min < ServerClock.config.outlierTolerance &&
-      max - max2 < ServerClock.config.outlierTolerance
-    );
-  };
-
-  // Choose one adjustment to apply
-  const chooseAdjustment = () => {
-    differenceSamples = differenceSamples.sort((a, b) => b - a);
-    const candidates = [];
-    for (let i = 0; i < differenceSamples.length; i++) {
-      for (let j = differenceSamples.length - 1; j >= 0; j--) {
-        if (differenceSamples[i] - differenceSamples[j] < 1000) {
-          candidates.push([j - i, i]);
-          break;
-        }
+        console.log('The chosen adjustment is', this.currentAdjustment / 1000, 'sec.');
+        if (differenceSamples.length < this.config.sampleMaximum) this.SC.uiObject.updateMessage('000', '');
+        this.lastSynchronized = performance.now();
       }
-    }
-    candidates.sort((a, b) => b - a);
-    adjustment = differenceSamples[candidates[0][1]];
+    };
 
-    console.log('[Adjustments]');
-    differenceSamples.forEach((element) => {
-      console.log(element / 1000);
-    });
-    console.log('The chosen adjustment is', adjustment / 1000, 'sec.');
-    if (differenceSamples.length < ServerClock.config.sampleMaximum) ServerClock.UI.updateMessage('000', '');
-    lastSynchronized = performance.now();
-  };
-})((ServerClock.Time = ServerClock.Time || {}));
+let Sample = defined
+  ? window.ServerClocks[0].class.Sample
+  : class Sample {
+      constructor(SC) {
+        this.SC = SC;
+        this.config = SC.config;
+        this.timeIdErrorTolerance = 500;
+        this.controller = new AbortController();
+        this.observer;
+        this.requestTimeout;
+        this.request = new Request(this.config.targetURL, {
+          // Create a request object with no-cache headers
+          // This prevents looking up 'date' header from cached responses
+          method: 'GET',
+          cache: 'no-store',
+          headers: new Headers({
+            Connection: 'keep-alive',
+            'Cache-Control': 'no-cache',
+            Pragma: 'no-cache',
+            Expires: '0',
+          }),
+        });
+      }
 
-// UI related
-((UI, $, undefined) => {
-  let updateTimer;
-  let nameSeed = 0;
-  let clockElements;
-  const elementID = {
-    clock: '',
-    time: '',
-    message: '',
-    contextmenu: '',
-    menuitem: '',
-  };
-  const getSeed = () => Math.floor(Math.random() * (2 << 25));
-  const getName = (seed, offset) => `e${(seed + offset).toString(16)}`;
-  const makeElementId = () => {
-    nameSeed = getSeed();
-    elementID.clock = getName(nameSeed, 0);
-    elementID.time = getName(nameSeed, 1);
-    elementID.message = getName(nameSeed, 2);
-    elementID.contextmenu = getName(nameSeed, 3);
-    elementID.menuitem = getName(nameSeed, 4);
-  };
-  const formatTime = (clockTime) => {
-    // Format time to string
-    const formatDigit = (d) => String(d).padStart(2, '0');
-    const time = new Date(clockTime);
-    const hours = formatDigit(time.getHours() % 12 || 12);
-    const minutes = formatDigit(time.getMinutes());
-    const seconds = formatDigit(time.getSeconds());
-    const amPm = time.getHours() >= 12 ? 'PM' : 'AM';
-    return `${hours}:${minutes}:${seconds} ${amPm}`;
-  };
+      collect() {
+        return new Promise((resolve, reject) => {
+          let HTTPTime = 0;
+          let timeId = 0;
+          this.observer = new PerformanceObserver((list) => {
+            const entry = list.getEntries().find(({ name }) => name === this.request.url);
+            if (entry && Math.abs(timeId - entry.startTime) < this.timeIdErrorTolerance) {
+              clearTimeout(this.requestTimeout);
+              this.observer.disconnect();
+              this.processSample(resolve, entry, requestStartTime, HTTPTime);
+            } else {
+              this.setTimeout(reject);
+            }
+          });
+          this.observer.observe({ type: 'resource' });
 
-  const constructUI = () => {
-    const createClockElements = () => {
-      // Create clock elements
-      const frameElement = document.createElement('div');
-      frameElement.id = elementID.clock;
+          timeId = performance.now();
+          const requestStartTime = Time.getClientTime();
+          fetch(this.request, { signal: this.controller.signal })
+            .then(async (response) => {
+              HTTPTime = Date.parse(response.headers.get('date'));
+              await response.text(); // Fixes incomplete response issue
+            })
+            .catch(() => {});
 
-      const timeElement = document.createElement('span');
-      timeElement.textContent = '00:00:00 NA';
-      timeElement.id = elementID.time;
-      frameElement.appendChild(timeElement);
+          this.setTimeout(reject);
+        });
+      }
 
-      const messageElement = document.createElement('span');
-      messageElement.id = elementID.message;
-      frameElement.appendChild(messageElement);
+      processSample(returnSuccess, entry, requestStartTime, HTTPTime) {
+        const estimatedLatency = (entry.responseStart - entry.requestStart) / 2;
+        const elapsedSinceRequest = entry.requestStart - entry.startTime + estimatedLatency;
 
-      // Function to handle dragging
-      const handleDrag = (event) => {
-        let initialX = event.clientX - frameElement.offsetLeft;
-        let initialY = event.clientY - frameElement.offsetTop;
+        // Calculate client/server time difference based on HTTP `date` header
+        // Accomodate estimated elapsed time (time taken before server recorded `date`)
+        const HTTPAdjustment = HTTPTime - (requestStartTime + elapsedSinceRequest);
 
-        const handleMove = (event) => {
-          const newX = event.clientX - initialX;
-          const newY = event.clientY - initialY;
-
-          const borderX = window.innerWidth - frameElement.offsetWidth;
-          const borderY = window.innerHeight - frameElement.offsetHeight;
-
-          const applyX = Math.max(0, Math.min(newX, borderX));
-          const applyY = Math.max(0, Math.min(newY, borderY));
-
-          frameElement.style.left = `${applyX}px`;
-          frameElement.style.top = `${applyY}px`;
+        const result = {
+          elapsedSinceRequest,
+          HTTPAdjustment,
         };
 
-        const handleRelease = () => {
-          document.removeEventListener('mousemove', handleMove);
-          document.removeEventListener('mouseup', handleRelease);
-        };
+        console.log('Collected a difference sample.');
+        returnSuccess(result);
+      }
 
-        document.addEventListener('mousemove', handleMove);
-        document.addEventListener('mouseup', handleRelease);
+      setTimeout(returnFail) {
+        if (this.requestTimeout) clearTimeout(this.requestTimeout);
+        this.requestTimeout = setTimeout(() => {
+          console.log('Request timed out. Timeout:', config.timeoutAfter / 1000, 'sec.');
+          this.observer.disconnect();
+          this.controller.abort();
+          returnFail();
+        }, this.config.timeoutAfter);
+      }
+    };
+
+let UI = defined
+  ? window.ServerClocks[0].class.UI
+  : class UI {
+      static getSeed = () => Math.floor(Math.random() * (2 << 25));
+      static getName = (seed, offset) => `e${(seed + offset).toString(16)}`;
+      static formatTime = (clockTime) => {
+        const formatDigit = (d) => String(d).padStart(2, '0');
+        const time = new Date(clockTime);
+        const hours = formatDigit(time.getHours() % 12 || 12);
+        const minutes = formatDigit(time.getMinutes());
+        const seconds = formatDigit(time.getSeconds());
+        const amPm = time.getHours() >= 12 ? 'PM' : 'AM';
+        return `${hours}:${minutes}:${seconds} ${amPm}`;
       };
 
-      // Attach event listener for dragging
-      frameElement.addEventListener('mousedown', handleDrag);
-      return [frameElement, timeElement, messageElement];
-    };
+      constructor(SC) {
+        this.SC = SC;
+        this.config = SC.config;
+        this.updateTimer;
+        this.clockElements;
+        this.elementID = this.makeElementId();
+        this.clockElements = this.createClockElements();
+        this.styleSheet = document.createElement('style');
+        this.constructUI();
+      }
 
-    const attachContextMenu = (element, menuItems) => {
-      // Prevent the default context menu from showing
-      element.addEventListener('contextmenu', (event) => {
-        event.preventDefault();
+      makeElementId() {
+        const elementID = {};
+        const nameSeed = UI.getSeed();
+        elementID.clock = UI.getName(nameSeed, 0);
+        elementID.time = UI.getName(nameSeed, 1);
+        elementID.message = UI.getName(nameSeed, 2);
+        elementID.contextmenu = UI.getName(nameSeed, 3);
+        elementID.menuitem = UI.getName(nameSeed, 4);
+        return elementID;
+      }
 
-        // Reuse previous contextmenu if exists
-        if (document.getElementById(elementID.contextmenu)) {
-          const menu = document.getElementById(elementID.contextmenu);
-          menu.style.top = `${event.clientY}px`;
-          menu.style.left = `${event.clientX}px`;
-          return;
-        }
+      createClockElements() {
+        const frameElement = document.createElement('div');
+        frameElement.id = this.elementID.clock;
 
-        // Create the context menu element
-        const menu = document.createElement('div');
-        menu.id = elementID.contextmenu;
-        menu.style.top = `${event.clientY}px`;
-        menu.style.left = `${event.clientX}px`;
+        const timeElement = document.createElement('span');
+        timeElement.textContent = '00:00:00 NA';
+        timeElement.id = this.elementID.time;
+        frameElement.appendChild(timeElement);
 
-        // Create and append menu items
-        for (const item of menuItems) {
-          const menuItem = document.createElement('div');
-          menuItem.textContent = item.label;
-          menuItem.addEventListener('click', item.action);
-          menuItem.classList.add(elementID.menuitem);
-          menu.appendChild(menuItem);
-        }
+        const messageElement = document.createElement('span');
+        messageElement.id = this.elementID.message;
+        frameElement.appendChild(messageElement);
 
-        // Close the menu
-        const closeMenu = () => {
-          document.body.removeChild(menu);
-          document.removeEventListener('click', closeMenu);
+        const handleDrag = (event) => {
+          let initialX = event.clientX - frameElement.offsetLeft;
+          let initialY = event.clientY - frameElement.offsetTop;
+
+          const handleMove = (event) => {
+            const newX = event.clientX - initialX;
+            const newY = event.clientY - initialY;
+
+            const borderX = window.innerWidth - frameElement.offsetWidth;
+            const borderY = window.innerHeight - frameElement.offsetHeight;
+
+            const applyX = Math.max(0, Math.min(newX, borderX));
+            const applyY = Math.max(0, Math.min(newY, borderY));
+
+            frameElement.style.left = `${applyX}px`;
+            frameElement.style.top = `${applyY}px`;
+          };
+
+          const handleRelease = () => {
+            document.removeEventListener('mousemove', handleMove);
+            document.removeEventListener('mouseup', handleRelease);
+          };
+
+          document.addEventListener('mousemove', handleMove);
+          document.addEventListener('mouseup', handleRelease);
         };
 
-        // Attach the menu to the body
-        document.body.appendChild(menu);
+        frameElement.addEventListener('mousedown', handleDrag);
+        return [frameElement, timeElement, messageElement];
+      }
 
-        // Close the menu on clicking outside
-        document.addEventListener('click', closeMenu);
-      });
+      attachContextMenu(element, menuItems) {
+        element.addEventListener('contextmenu', (event) => {
+          event.preventDefault();
+
+          if (document.getElementById(this.elementID.contextmenu)) {
+            const menu = document.getElementById(this.elementID.contextmenu);
+            menu.style.top = `${event.clientY}px`;
+            menu.style.left = `${event.clientX}px`;
+            return;
+          }
+
+          const menu = document.createElement('div');
+          menu.id = this.elementID.contextmenu;
+          menu.style.top = `${event.clientY}px`;
+          menu.style.left = `${event.clientX}px`;
+
+          for (const item of menuItems) {
+            const menuItem = document.createElement('div');
+            menuItem.textContent = item.label;
+            menuItem.addEventListener('click', item.action);
+            menuItem.classList.add(this.elementID.menuitem);
+            menu.appendChild(menuItem);
+          }
+
+          const closeMenu = () => {
+            document.body.removeChild(menu);
+            document.removeEventListener('click', closeMenu);
+          };
+
+          document.body.appendChild(menu);
+          document.addEventListener('click', closeMenu);
+        });
+      }
+
+      action_rerun() {
+        console.log('Resynchronizing...');
+        this.SC.timeObject.synchronize().then(this.startUpdateTimer());
+      }
+
+      action_visitproject() {
+        console.log('Opening the project page...');
+        window.open('https://github.com/r8btx/Server-Clock-Bookmarklet/', '_blank');
+      }
+
+      action_exit() {
+        this.SC.exit();
+      }
+
+      removeUI() {
+        if (typeof this.updateTimer !== 'undefined') clearTimeout(this.updateTimer);
+        document.body.removeChild(this.clockElements[0]);
+        document.head.removeChild(this.styleSheet);
+      }
+
+      constructUI() {
+        const elementID = this.elementID;
+        const clockElements = this.clockElements;
+        const styleSheet = this.styleSheet;
+        const menuItems = [
+          { label: 'Rerun', action: () => this.action_rerun() },
+          { label: 'Visit project page', action: () => this.action_visitproject() },
+          { label: 'Exit', action: () => this.action_exit() },
+        ];
+
+        this.attachContextMenu(clockElements[0], menuItems);
+
+        const styles = `
+          #${elementID.clock}:hover,
+          #${elementID.contextmenu} {
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+          }
+          #${elementID.clock},
+          #${elementID.contextmenu} {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+            border-radius: 4px;
+            font-family: Arial, sans-serif;
+            position: fixed;
+            left: 10px;
+            background: #fff;
+            color: #000;
+            z-index: 9999;
+          }
+          #${elementID.clock} {
+            top: 10px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            align-items: center;
+            transition: box-shadow 0.3s;
+          }
+          #${elementID.message} {
+            line-height: 0;
+            font-size: 0.6rem;
+            font-weight: 700;
+          }
+          #${elementID.time} {
+            font-size: 1.25rem;
+            line-height: 1.75;
+          }
+          #${elementID.contextmenu} {
+            padding: 6px 0;
+          }
+          .${elementID.menuitem} {
+            font-family: Arial, sans-serif;
+            font-size: 1.125rem;
+            line-height: 1.75rem;
+            padding: 6px 12px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+          }
+          .${elementID.menuitem}:hover {
+            background-color: #3cb371;
+            color: #fff;
+          }`;
+
+        styleSheet.innerText = styles.replace(/\n/g, '').replace(/\s+/g, ' ');
+        document.head.appendChild(styleSheet);
+
+        document.body.appendChild(clockElements[0]);
+      }
+
+      updateClock() {
+        if ((performance.now() - this.SC.timeObject.lastSynchronized) / 1000 > this.config.validFor)
+          this.updateMessage('ffca28', 'INACCURACY WARNING');
+
+        const timeElement = this.clockElements[1];
+        const clockTime = this.SC.timeObject.getServerTime();
+        timeElement.textContent = UI.formatTime(clockTime);
+
+        this.updateTimer = this.SC.stop
+          ? this.updateMessage('ff5252', 'STOPPED')
+          : setTimeout(this.updateClock.bind(this), 1000 - (clockTime % 1000));
+      }
+
+      startUpdateTimer() {
+        if (typeof this.updateTimer === 'undefined' && typeof this.SC.timeObject !== 'undefined') {
+          this.SC.stop = false;
+          this.updateClock();
+        }
+      }
+
+      updateMessage = (hexColor, message) => {
+        const messageDOM = document.getElementById(this.elementID.message);
+        if (!messageDOM) return;
+        messageDOM.textContent = message;
+        messageDOM.style.color = `#${hexColor}`;
+      };
     };
 
-    // Append styles
-    const styleSheet = document.createElement('style');
-    const appendStyles = (styles) => {
-      styleSheet.innerText = styles.replace(/\n/g, '').replace(/\s+/g, ' ');
-      document.head.appendChild(styleSheet);
-    };
+class ServerClock {
+  constructor() {
+    this.version = '1.3';
+    this.config = config;
+    this.stop = false;
+    this.class = { Time, Sample, UI };
+    this.timeObject = new Time(this);
+    this.uiObject = new UI(this);
+  }
 
-    // Append the clock frame to the body
-    const appendClockFrame = (clockFrame) => {
-      document.body.appendChild(clockFrame);
-    };
+  exit() {
+    this.stop = true;
+    this.uiObject.removeUI();
+    const index = window.ServerClocks.indexOf(this);
+    window.ServerClocks.splice(index, 1);
+    if (window.ServerClocks.length === 0) delete window.ServerClocks;
 
-    // Contextmenu action rerun
-    const action_rerun = () => {
-      console.log('Resynchronizing...');
-      ServerClock.Time.synchronize().then(ServerClock.UI.startUpdateTimer);
-    };
+    this.timeObject = undefined;
+    this.uiObject = undefined;
+    console.log('Server Clock finished.');
+  }
 
-    // Contextmenu action visitproject
-    const action_visitproject = () => {
-      console.log('Opening the project page...');
-      window.open('https://github.com/r8btx/Server-Clock-Bookmarklet/', '_blank');
-    };
+  synchronize() {
+    return this.timeObject.synchronize();
+  }
 
-    // Contextmenu action exit
-    const action_exit = ServerClock.exit;
-    UI.removeUI = () => {
-      // remove UI
-      ServerClock.stop = true;
-      if (updateTimer !== undefined) clearTimeout(updateTimer);
-      document.body.removeChild(clockElements[0]);
-      document.head.removeChild(styleSheet);
-    };
+  getClientTime() {
+    return this.class.Time.getClientTime();
+  }
 
-    // Add contextmenu
-    clockElements = createClockElements();
-    const menuItems = [
-      { label: 'Rerun', action: action_rerun },
-      { label: 'Visit project page', action: action_visitproject },
-      { label: 'Exit', action: action_exit },
-    ];
+  getServerTime() {
+    return this.timeObject.getServerTime();
+  }
 
-    attachContextMenu(clockElements[0], menuItems);
-    appendStyles(`
-      #${elementID.clock}:hover,
-      #${elementID.contextmenu} {
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-      }
-      #${elementID.clock},
-      #${elementID.contextmenu} {
-        cursor: pointer;
-        user-select: none;
-        display: flex;
-        flex-direction: column;
-        border-radius: 4px;
-        font-family: Arial, sans-serif;
-        position: fixed;
-        left: 10px;
-        background: #fff;
-        color: #000;
-        z-index: 9999;
-      }
-      #${elementID.clock} {
-        top: 10px;
-        padding: 12px;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        align-items: center;
-        transition: box-shadow 0.3s;
-      }
-      #${elementID.message} {
-        line-height: 0;
-        font-size: 0.6rem;
-        font-weight: 700;
-      }
-      #${elementID.time} {
-        font-size: 1.25rem;
-        line-height: 1.75;
-      }
-      #${elementID.contextmenu} {
-        padding: 6px 0;
-      }
-      .${elementID.menuitem} {
-        font-family: Arial, sans-serif;
-        font-size: 1.125rem;
-        line-height: 1.75rem;
-        padding: 6px 12px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-      }
-      .${elementID.menuitem}:hover {
-        background-color: #3cb371;
-        color: #fff;
-      }`);
-    appendClockFrame(clockElements[0]);
-  };
-
-  const updateClock = () => {
-    // Update clock every beginning of a second
-    if ((performance.now() - ServerClock.Time.getLastSynchronized()) / 1000 > ServerClock.config.validFor)
-      UI.updateMessage('ffca28', 'INACCURACY WARNING');
-    const clockTime = ServerClock.Time.getServerTime();
-    clockElements[1].textContent = formatTime(clockTime);
-    updateTimer = ServerClock.stop
-      ? UI.updateMessage('ff5252', 'STOPPED')
-      : setTimeout(updateClock, 1000 - (clockTime % 1000));
-  };
-
-  UI.startUpdateTimer = () => {
-    if (ServerClock.stop || typeof currentAdjustment === 'undefined') {
-      ServerClock.stop = false;
-      updateClock();
-    }
-  };
-
-  UI.updateMessage = (hexColor, message) => {
-    const messageDOM = document.getElementById(elementID.message);
-    if (!messageDOM) return;
-    messageDOM.textContent = message;
-    messageDOM.style.color = `#${hexColor}`;
-  };
-  makeElementId();
-  constructUI();
-})((ServerClock.UI = ServerClock.UI || {}));
+  startUpdateTimer() {
+    this.uiObject.startUpdateTimer();
+  }
+}
 
 (() => {
-  console.log(`Server Clock started. [Version ${ServerClock.version}]`);
-  ServerClock.Time.synchronize().then(ServerClock.UI.startUpdateTimer);
-  if (typeof window.ServerClocks === 'undefined') {
+  let serverclock = new ServerClock();
+  console.log(`Server Clock started. [Version ${serverclock.version}]`);
+  serverclock.synchronize().then(() => serverclock.startUpdateTimer());
+  if (!defined) {
     window.ServerClocks = [];
   }
-  window.ServerClocks.push(ServerClock);
+  window.ServerClocks.push(serverclock);
 })();

@@ -2,6 +2,10 @@
 
 ## Server Clock
 
+[v1.3] Rework on multiple instance cases  
+[v1.3] Rework on console interface  
+[v1.3] Implemented a modified binary search to calculate effective request delays  
+[v1.3] Code refactoring  
 [v1.2] test_accuracy.js only supports a single instance (accessed via ServerClock)  
 [v1.2] Multiple instances of Server Clock is available (accessed via ServerClocks)  
 [v1.2] Exit via console is now available  
