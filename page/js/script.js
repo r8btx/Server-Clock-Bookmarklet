@@ -135,9 +135,9 @@ function init() {
     // Option for UglifyJS
     const options = {
       compress: {
+        toplevel: true,
         expression: true,
-        keep_fargs: true,
-        keep_infinity: true,
+        passes: 2,
       },
       mangle: { toplevel: true },
       wrap: false,
