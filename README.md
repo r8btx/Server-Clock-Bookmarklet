@@ -18,13 +18,13 @@ If you wish to generate the bookmarklet manually from the source, you can do so 
 ## How to Use
 
 1. Navigate to your target webpage. Example: [time.is](https://time.is)
-2. Once the webpage is loaded, click `Server Clock` bookmarklet on your bookmark bar.
+2. Once the webpage is fully loaded, click `Server Clock` bookmarklet on your bookmark bar.
 3. A small box will appear on your webpage. After the synchronization process, the web server's time will be displayed.
 
 Tip 1: You can right-click on the box to use additional features.  
 Tip 2: You can drag the box around for a better view.  
 Tip 3: You can open the browser console (accessed via `F12` key) to see logs.  
-Tip 4: The clock is most accurate when the page is freshly loaded.
+Tip 4: The clock is most accurate when the clock is freshly synchronized.
 
 ## Screenshots
 
@@ -64,6 +64,23 @@ The `date` value and its actual generation time can have a time difference rangi
 One approach to mitigate the inaccuracy caused by truncation is through estimation pooling. Since server time estimations can be ordered from the most truncated to the least truncated, the rightmost estimation (shown as a red bar in the image above) is most likely to be the most accurate estimation.
 
 To handle outliers, the estimation pooling process only considers estimations within a 1-second time frame that includes the most estimations.
+
+### Improving Accuracy While Minimizing the Number of Required Samples
+
+<img src="./img/modifiedBinarySearch.jpg" width="900" alt="Modified Binary Search"/>
+
+**Server Clock** utilizes a modified binary search algorithm to calculate delays for optimal sample of the target web server's time. With the clockwise distance (the degree of truncation) measured relatively amongst collected samples, an instance of this search process can be shown as follows:
+
+1. Randomly obtain the first sample A. A becomes the reference point.
+2. Obtain sample B by targeting A - 500. Since B has a lower clockwise distance, B becomes the reference point.
+3. Obtain sample C by targeting B - 250. Since C has a lower clockwise distance, C becomes the reference point.
+4. Obtain sample D by targeting C - 125. Since C has a lower clockwise distance, C remains as the reference point.
+5. Obtain sample E by targeting C - 62.5. Since C has a lower clockwise distance, C remains as the reference point.
+6. Since the difference between C and E are less than the error tolerance (default: 100ms), the algorithm ends.
+
+   Result: C is used as the clock adjustment with an error of 33ms.
+
+Note: The numbers 500, 250, 125, and 62.5 are determined by `1000 / 2^(the number of collected samples)`
 
 ### Others
 
