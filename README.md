@@ -5,9 +5,7 @@ It is a reimplementation of [the previous project](https://github.com/r8btx/Serv
 
 ## Disclaimer
 
-While **Server Clock** aims to be accurate, no warranty is given. Use at your own risk!  
-**This repository is currently undergoing active maintenance. You may need to visit again for the latest updates.**  
-[[ChangeLog](./changelog.md)]
+While **Server Clock** aims to be accurate, no warranty is given.
 
 ## Quick Setup
 
@@ -25,6 +23,11 @@ Tip 1: You can right-click on the box to use additional features.
 Tip 2: You can drag the box around for a better view.  
 Tip 3: You can open the browser console (accessed via `F12` key) to see logs.  
 Tip 4: The clock is most accurate when the clock is freshly synchronized.
+
+## Notes
+
+1. For the changelog, visit the [ChangeLog.md](./changelog.md) file.
+2. To test Server Clock's behavior under your network conditions, use test_accuracy.js from the [Server Clock bookmarklet distribution page](https://r8btx.github.io/Server-Clock-Bookmarklet/page).
 
 ## Screenshots
 
