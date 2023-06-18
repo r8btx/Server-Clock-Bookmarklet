@@ -1,6 +1,6 @@
 # Server Clock Bookmarklet
 
-**Server Clock** is a JavaScript bookmarklet that attempts to solve the problem of server/client clock differences. By displaying an accurately approximated server time, this tool allows its users to know exactly when to engage in activities such as ticketing and course registrations.  
+**Server Clock** is a JavaScript bookmarklet that attempts to solve the problem of server/client clock differences. By displaying an accurately approximated server time, this tool allows its users to know exactly when to engage in time-sensitive activities such as ticketing and course registrations.  
 It is a reimplementation of [the previous project](https://github.com/r8btx/Server-Clock) with some improvements and additional features.
 
 ## Disclaimer
