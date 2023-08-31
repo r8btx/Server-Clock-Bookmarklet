@@ -1,42 +1,29 @@
-// URI encode reserved characters
 function encodeReserved(str) {
   const reserved = [' ', '%', '"', '<', '>', '#', '@', '\\&', '\\?'];
   return str.replace(new RegExp(reserved.join('|'), 'g'), encodeURIComponent);
 }
 
-// Markdown format to html format
 function encodeMarkdown(markdown) {
-  // headers (e.g. # Header1)
-  markdown = markdown.replace(/###### (.*?)(\n|$)/g, '<h6>$1</h6>\n');
-  markdown = markdown.replace(/##### (.*?)(\n|$)/g, '<h5>$1</h5>\n');
-  markdown = markdown.replace(/#### (.*?)(\n|$)/g, '<h4>$1</h4>\n');
-  markdown = markdown.replace(/### (.*?)(\n|$)/g, '<h3>$1</h3>\n');
-  markdown = markdown.replace(/## (.*?)(\n|$)/g, '<h2>$1</h2>\n');
-  markdown = markdown.replace(/# (.*?)(\n|$)/g, '<h1>$1</h1>\n');
+  const headers = Array.from({ length: 6 }, (_, i) => `<h${i + 1}>$1</h${i + 1}>\n`);
+  markdown = markdown.replace(/#{1,6} (.*?)(\n|$)/g, (_, match) => headers[match.length - 1]);
 
-  // bold and italic emphasis (e.g. **bold** or _italic_)
-  markdown = markdown.replace(/\*\*(.*?)\*\*|__(.*?)__/g, '<strong>$1$2</strong>');
-  markdown = markdown.replace(/\*(.*?)\*|_(.*?)_/g, '<em>$1$2</em>');
+  const emphasis = ['strong', 'em'];
+  markdown = markdown.replace(
+    /\*\*(.*?)\*\*|__(.*?)__/g,
+    (_, match1, match2, index) => `<${emphasis[index]}>${match1 || match2}</${emphasis[index]}>`,
+  );
 
-  // code blocks (e.g. ```code```)
   markdown = markdown.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-
-  // inline code (e.g. `code`)
   markdown = markdown.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-  // unordered lists (e.g. * Item)
   markdown = markdown.replace(/\n\* (.*?)(\n|$)/g, '\n<ul>\n<li>$1</li>\n</ul>');
-
-  // ordered lists (e.g. 1. Item)
   markdown = markdown.replace(/\n\d+\. (.*?)(\n|$)/g, '\n<ol>\n<li>$1</li>\n</ol>');
 
-  // line breaks
   markdown = markdown.replace(/\n/g, '<br>');
 
   return markdown;
 }
 
-// Copy on click instead of run (<a> tag only)
 function copyOnClick(event) {
   event.preventDefault();
   const copyText = document.createElement('textarea');
@@ -44,17 +31,12 @@ function copyOnClick(event) {
   copyText.style.display = 'hidden';
   document.body.appendChild(copyText);
   copyText.select();
-  copyText.setSelectionRange(0, 99999); // For mobile devices
+  copyText.setSelectionRange(0, 99999);
 
   try {
     navigator.clipboard.writeText(copyText.value);
     prompt(
-      'Code copied to clipboard!\n' +
-        'You can now create a bookmarklet by following these steps:\n' +
-        '1. Create a regular bookmark in your browser.\n' +
-        '2. In the URL section, paste the copied code.\n' +
-        '3. Done!\n\n' +
-        'Code in case your browser blocks automatic copying:',
+      'Code copied to clipboard!\nYou can now create a bookmarklet by following these steps:\n1. Create a regular bookmark in your browser.\n2. In the URL section, paste the copied code.\n3. Done!\n\nCode in case your browser blocks automatic copying:',
       copyText.value,
     );
   } catch (error) {
@@ -62,10 +44,6 @@ function copyOnClick(event) {
   }
   copyText.remove();
 }
-
-/* ------------------------------
-// Init Section
-// ------------------------------*/
 
 function init() {
   document.removeEventListener('DOMContentLoaded', init);
@@ -88,21 +66,18 @@ function init() {
         const bookmarklet = document.createElement('a');
         bookmarklet.href = entry.src;
         bookmarklet.innerText = 'Building...';
-        bookmarklet.classList.add('bookmarklet');
-        bookmarklet.classList.add('hidden');
+        bookmarklet.className = 'bookmarklet hidden';
         d_bookmarklets.appendChild(bookmarklet);
 
         const note = document.createElement('div');
         note.innerHTML = `${encodeMarkdown(entry.note)}<br/><b>${encodeMarkdown(
           entry.instruction,
         )}</b><br/><br/>Version: ${entry.version}<br/>Size: <span id="s${groups.length}">0</span> characters`;
-        note.classList.add('note');
-        note.classList.add('hidden');
+        note.className = 'note hidden';
         d_notes.appendChild(note);
 
         groups.push([option, bookmarklet, note]);
       }
-
       return true;
     } catch (error) {
       console.error(error);
@@ -112,9 +87,8 @@ function init() {
 
   function updateDropdown() {
     const selectedIndex = Math.max(0, d_options.selectedIndex);
-    for (let i = 0; i < groups.length; i++) {
-      const group = groups[i];
-      const isVisible = i === selectedIndex;
+    for (const group of groups) {
+      const isVisible = group === groups[selectedIndex];
       for (let j = 1; j < group.length; j++) {
         group[j].classList.toggle('hidden', !isVisible);
       }
@@ -128,23 +102,15 @@ function init() {
     }
   }
 
-  // Make JavaScript bookmarklet from a static source
   function attachBookmarklet() {
     const bookmarklets = document.getElementsByClassName('bookmarklet');
-
-    // Option for UglifyJS
     const options = {
-      compress: {
-        toplevel: true,
-        expression: true,
-        passes: 2,
-      },
+      compress: { toplevel: true, expression: true, passes: 2 },
       mangle: { toplevel: true },
       wrap: false,
     };
 
     Array.from(bookmarklets).forEach(async (bookmarklet, i) => {
-      // Update href to bookmarklet
       const src = bookmarklet.href;
       try {
         const response = await fetch(src);
@@ -156,14 +122,13 @@ function init() {
         if (!result.code) {
           throw 'UglyJS returned an empty string';
         }
-        const compressed = result.code.replace(/\n\s+/gm, ''); // temporary fix
+        const compressed = result.code.replace(/\n\s+/gm, '');
         const encoded = encodeReserved(compressed);
-        const bookmarkletCode = `javascript:void function(){${encoded}}();`; // Finalize bookmarklet generation
+        const bookmarkletCode = `javascript:void function(){${encoded}}();`;
         bookmarklet.href = bookmarkletCode;
         bookmarklet.innerHTML = 'Server Clock';
-        bookmarklet.addEventListener('click', copyOnClick); // Copy code on click
+        bookmarklet.addEventListener('click', copyOnClick);
 
-        // Update size
         const id = `s${i}`;
         document.getElementById(id).innerText = String(bookmarklet.href.length);
       } catch (error) {
