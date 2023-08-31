@@ -35,6 +35,7 @@
 
 ## Distribution Page
 
+[v0.6] Code reduction  
 [v0.5] Clicking the bookmarklet link will copy the code to the clipboard.  
 [v0.4] Now supports Dark theme  
 [v0.4] Code rewrite  
