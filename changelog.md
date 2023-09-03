@@ -2,6 +2,7 @@
 
 ## Server Clock
 
+[v1.4] fixed z-index issue & rewrote clock drag-and-drop  
 [v1.3] Rework on multiple instance cases  
 [v1.3] Rework on console interface  
 [v1.3] Implemented a modified binary search to calculate effective request delays  

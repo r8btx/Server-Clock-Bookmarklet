@@ -246,6 +246,8 @@ let UI = defined
       createClockElements() {
         const frameElement = document.createElement('div');
         frameElement.id = this.elementID.clock;
+        frameElement.draggable = true;
+        let initialX, initialY;
 
         const timeElement = document.createElement('span');
         timeElement.textContent = '00:00:00 NA';
@@ -256,34 +258,25 @@ let UI = defined
         messageElement.id = this.elementID.message;
         frameElement.appendChild(messageElement);
 
-        const handleDrag = (event) => {
-          let initialX = event.clientX - frameElement.offsetLeft;
-          let initialY = event.clientY - frameElement.offsetTop;
+        frameElement.addEventListener('dragstart', (event) => {
+          initialX = event.clientX - frameElement.offsetLeft;
+          initialY = event.clientY - frameElement.offsetTop;
+        });
 
-          const handleMove = (event) => {
-            const newX = event.clientX - initialX;
-            const newY = event.clientY - initialY;
+        frameElement.addEventListener('dragend', (event) => {
+          const newX = event.clientX - initialX;
+          const newY = event.clientY - initialY;
 
-            const borderX = window.innerWidth - frameElement.offsetWidth;
-            const borderY = window.innerHeight - frameElement.offsetHeight;
+          const borderX = window.innerWidth - frameElement.offsetWidth;
+          const borderY = window.innerHeight - frameElement.offsetHeight;
 
-            const applyX = Math.max(0, Math.min(newX, borderX));
-            const applyY = Math.max(0, Math.min(newY, borderY));
+          const applyX = Math.max(0, Math.min(newX, borderX));
+          const applyY = Math.max(0, Math.min(newY, borderY));
 
-            frameElement.style.left = `${applyX}px`;
-            frameElement.style.top = `${applyY}px`;
-          };
+          frameElement.style.left = `${applyX}px`;
+          frameElement.style.top = `${applyY}px`;
+        });
 
-          const handleRelease = () => {
-            document.removeEventListener('mousemove', handleMove);
-            document.removeEventListener('mouseup', handleRelease);
-          };
-
-          document.addEventListener('mousemove', handleMove);
-          document.addEventListener('mouseup', handleRelease);
-        };
-
-        frameElement.addEventListener('mousedown', handleDrag);
         return [frameElement, timeElement, messageElement];
       }
 
@@ -314,10 +307,12 @@ let UI = defined
           const closeMenu = () => {
             document.body.removeChild(menu);
             document.removeEventListener('click', closeMenu);
+            document.removeEventListener('dragstart', closeMenu);
           };
 
           document.body.appendChild(menu);
           document.addEventListener('click', closeMenu);
+          document.addEventListener('dragstart', closeMenu);
         });
       }
 
@@ -353,6 +348,11 @@ let UI = defined
 
         this.attachContextMenu(clockElements[0], menuItems);
 
+        const highestZIndex = Array.from(document.querySelectorAll('*')).reduce((maxZIndex, element) => {
+          const zIndex = parseInt(getComputedStyle(element).zIndex);
+          return isNaN(zIndex) ? maxZIndex : Math.max(maxZIndex, zIndex);
+        }, 0);
+
         const styles = `
           #${elementID.clock}:hover,
           #${elementID.contextmenu} {
@@ -370,7 +370,7 @@ let UI = defined
             left: 10px;
             background: #fff;
             color: #000;
-            z-index: 9999;
+            z-index: ${highestZIndex};
           }
           #${elementID.clock} {
             top: 10px;
@@ -441,7 +441,7 @@ let UI = defined
 
 class ServerClock {
   constructor() {
-    this.version = '1.3';
+    this.version = '1.4';
     this.config = config;
     this.stop = false;
     this.class = { Time, Sample, UI };
